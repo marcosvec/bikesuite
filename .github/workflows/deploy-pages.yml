@@ -38,8 +38,6 @@ jobs:
 
       - name: Build static export
         run: npm run build
-        env:
-          NEXT_PUBLIC_BASE_PATH: /bikesuite
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
