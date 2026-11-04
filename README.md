@@ -147,6 +147,20 @@ header menu and at the bottom of Settings. It asks before clearing this browser.
 On a phone or tablet the sidebar becomes a menu, and the work-order board stacks into one column
 with jump links. The old screen-size block is gone.
 
+## Appointments
+
+Appointments books a drop-off between 9 AM and 4 PM. Settings > Work Orders sets how many
+drop-offs one day can hold. The default is 6. Checking a booked bike in creates an Intake work
+order, even when Assume Immediate Work is on. Cancelling a booking frees that day's capacity.
+
+## Reports
+
+Reports reads the sales and work orders in this browser. Revenue days and weeks use the shop
+time zone from Settings, which defaults to America/New_York, and weeks start on Monday. It also shows
+labor versus parts on finished work orders, the labor lines used most, the average time
+from intake to finished, and parts at or below their reorder point. Inventory shows the same
+reorder count as a badge.
+
 ## Verification
 
 Before committing or publishing:

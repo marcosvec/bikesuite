@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils'
 import { Check, Palette, Settings, Save, Wrench } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { SETTINGS_STORAGE_KEY } from '@/lib/demo/storage-keys'
-import { notifyShopSettingsChanged, parseTaxPercent } from '@/lib/demo/shop-settings'
+import { DEFAULT_SHOP_TIME_ZONE, isValidTimeZone, notifyShopSettingsChanged, parseTaxPercent } from '@/lib/demo/shop-settings'
+import { parseDailyCapacity } from '@/lib/demo/appointments'
 import { ResetDemoButton } from '@/components/dashboard/reset-demo-button'
 
 const sections = [
@@ -128,6 +129,8 @@ type ShopSettings = {
   currency:             string
   // Work Order behaviour
   assumeImmediateWork:  boolean
+  dailyDropoffCapacity: number
+  timeZone:             string
 }
 
 const defaultSettings: ShopSettings = {
@@ -141,6 +144,8 @@ const defaultSettings: ShopSettings = {
   taxRate:             '8',
   currency:            'USD',
   assumeImmediateWork: false,
+  dailyDropoffCapacity: 6,
+  timeZone:            DEFAULT_SHOP_TIME_ZONE,
 }
 
 function loadSettings(): ShopSettings {
@@ -157,6 +162,7 @@ function GeneralSection() {
   const [settings, setSettings] = useState<ShopSettings>(defaultSettings)
   const [saved, setSaved] = useState(false)
   const [taxError, setTaxError] = useState<string | null>(null)
+  const [zoneError, setZoneError] = useState<string | null>(null)
 
   useEffect(() => {
     setSettings(loadSettings())
@@ -169,14 +175,21 @@ function GeneralSection() {
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     const percent = parseTaxPercent(settings.taxRate)
+    const timeZone = settings.timeZone.trim()
     if (percent === null) {
       setTaxError('Enter a tax rate from 0 to 100 percent.')
       setSaved(false)
       return
     }
-    const next = { ...loadSettings(), ...settings, taxRate: String(percent) }
+    if (!isValidTimeZone(timeZone)) {
+      setZoneError('Enter an IANA time zone, such as America/New_York.')
+      setSaved(false)
+      return
+    }
+    const next = { ...loadSettings(), ...settings, taxRate: String(percent), timeZone }
     setSettings(next)
     setTaxError(null)
+    setZoneError(null)
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
     notifyShopSettingsChanged()
     setSaved(true)
@@ -192,6 +205,27 @@ function GeneralSection() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="timeZone">Shop time zone</Label>
+              <Input
+                id="timeZone"
+                list="shop-time-zones"
+                value={settings.timeZone}
+                onChange={e => { setZoneError(null); set('timeZone', e.target.value) }}
+                aria-invalid={zoneError ? true : undefined}
+                aria-describedby={zoneError ? 'time-zone-error' : 'time-zone-help'}
+              />
+              <datalist id="shop-time-zones">
+                <option value="America/New_York" />
+                <option value="America/Chicago" />
+                <option value="America/Denver" />
+                <option value="America/Los_Angeles" />
+              </datalist>
+              <p id="time-zone-help" className="text-muted-foreground text-xs">
+                Reports group sales by this clock. The default is America/New_York.
+              </p>
+              {zoneError && <p id="time-zone-error" role="alert" className="text-xs text-destructive">{zoneError}</p>}
+            </div>
             <div className="col-span-2 space-y-1.5">
               <Label htmlFor="shopName">Shop Name</Label>
               <Input
@@ -308,6 +342,7 @@ function GeneralSection() {
 function WorkOrdersSection() {
   const [settings, setSettings] = useState<ShopSettings>(defaultSettings)
   const [flash, setFlash] = useState(false)
+  const [capacityError, setCapacityError] = useState<string | null>(null)
 
   useEffect(() => { setSettings(loadSettings()) }, [])
 
@@ -350,6 +385,43 @@ function WorkOrdersSection() {
               checked={settings.assumeImmediateWork}
               onCheckedChange={v => handleToggle('assumeImmediateWork', v)}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="dropoff-capacity">Drop-off capacity per day</Label>
+            <Input
+              id="dropoff-capacity"
+              className="max-w-32"
+              type="number"
+              min={1}
+              max={24}
+              step={1}
+              value={settings.dailyDropoffCapacity}
+              aria-invalid={capacityError ? true : undefined}
+              aria-describedby={capacityError ? 'capacity-error' : undefined}
+              onChange={event => {
+                setCapacityError(null)
+                const nextValue = Number(event.target.value)
+                setSettings(current => ({ ...current, dailyDropoffCapacity: Number.isFinite(nextValue) ? nextValue : current.dailyDropoffCapacity }))
+              }}
+              onBlur={() => {
+                const capacity = parseDailyCapacity(settings.dailyDropoffCapacity)
+                if (capacity === null) {
+                  setCapacityError('Enter a whole number from 1 to 24.')
+                  return
+                }
+                const next = { ...loadSettings(), ...settings, dailyDropoffCapacity: capacity }
+                setSettings(next)
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+                notifyShopSettingsChanged()
+                setFlash(true)
+                setTimeout(() => setFlash(false), 1800)
+              }}
+            />
+            <p className="text-sm text-muted-foreground max-w-sm">
+              How many drop-off appointments the calendar will take on one day. Hours run from 9 AM to 4 PM.
+            </p>
+            {capacityError && <p id="capacity-error" role="alert" className="text-xs text-destructive">{capacityError}</p>}
           </div>
 
           {flash && (

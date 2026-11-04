@@ -54,6 +54,7 @@ import {
   type ServiceReceipt,
   type WOLineItem,
 } from '@/lib/demo/work-order-service'
+import { mockWorkOrderItems } from '@/lib/demo/mock-data'
 import { formatTaxPercent } from '@/lib/demo/shop-settings'
 import { useShopTaxRate } from '@/lib/demo/use-shop-tax-rate'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
@@ -894,7 +895,7 @@ export default function WorkOrdersPage() {
   const {
     customers, products, workOrders, setWorkOrders, setProducts, setCustomers, setTransactions,
   } = useDemoStore()
-  const [lineItems, setLineItems] = usePersistentState<Record<string, WOLineItem[]>>('bikesuite_work_order_items', {})
+  const [lineItems, setLineItems] = usePersistentState<Record<string, WOLineItem[]>>('bikesuite_work_order_items', mockWorkOrderItems)
   const [receipts, setReceipts] = usePersistentState<ServiceReceipt[]>(RECEIPTS_STORAGE_KEY, [])
   const [searchQuery, setSearchQuery] = useState('')
   const [layout, setLayout] = useState<'board' | 'cards'>('board')

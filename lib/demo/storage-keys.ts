@@ -7,6 +7,7 @@ export const DEMO_RESET_KEYS = [
   'bikesuite_customers',
   BIKES_STORAGE_KEY,
   'bikesuite_work_orders',
+  'bikesuite_appointments',
   'bikesuite_work_order_items',
   'bikesuite_transactions',
   RECEIPTS_STORAGE_KEY,

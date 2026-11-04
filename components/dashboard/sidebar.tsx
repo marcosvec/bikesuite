@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChevronLeft, ChevronRight, Settings } from 'lucide-react'
 import { useNavigationPreferences } from './navigation-preferences'
 import { navItems } from './nav-items'
+import { LowStockMark, useLowStockCount } from './low-stock-mark'
 
 function currentPath(pathname: string) {
   if (pathname === '/') return '/'
@@ -18,6 +19,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const path = currentPath(pathname)
   const { collapsed, toggleSidebar } = useNavigationPreferences()
+  const lowStock = useLowStockCount()
 
   return (
     <aside
@@ -56,7 +58,7 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                aria-label={item.label}
+                aria-label={item.href === '/inventory' && lowStock ? `${item.label}, ${lowStock} to reorder` : item.label}
                 title={collapsed ? item.label : undefined}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -67,6 +69,7 @@ export function Sidebar() {
               >
                 <item.icon className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>{item.label}</span>}
+                {item.href === '/inventory' && <LowStockMark />}
               </Link>
             )
           })}

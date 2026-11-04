@@ -2,6 +2,7 @@
 // Safe for public deployment - contains no real business data
 
 import type { Product, Customer, CustomerBike, Transaction, WorkOrder, Category, Brand } from '@/lib/types/database'
+import type { WOLineItem } from '@/lib/demo/work-order-service'
 
 // --- Categories ---
 
@@ -562,7 +563,61 @@ export const mockWorkOrders: WorkOrder[] = [
     updated_at: '2026-02-20T10:00:00Z',
     assigned_to: 'demo-user-001'
   },
+  {
+    id: 'wo-004',
+    organization_id: 'demo-org',
+    location_id: 'loc-001',
+    customer_id: 'cust-002',
+    customer_bike_id: null,
+    work_order_number: 'WO-2026-004',
+    status: 'picked_up',
+    priority: 'normal',
+    intake_notes: "Jane's city bike — annual tune",
+    diagnosis_notes: 'Cables and brake pads replaced.',
+    internal_notes: null,
+    estimated_completion: null,
+    labor_estimate: 75,
+    parts_estimate: 24.99,
+    actual_labor: 75,
+    actual_parts: 24.99,
+    completed_at: '2026-02-04T15:00:00.000Z',
+    created_at: '2026-02-02T15:00:00.000Z',
+    updated_at: '2026-02-04T15:00:00.000Z',
+    assigned_to: 'demo-user-001',
+  },
+  {
+    id: 'wo-005',
+    organization_id: 'demo-org',
+    location_id: 'loc-001',
+    customer_id: 'cust-001',
+    customer_bike_id: 'bike-001',
+    work_order_number: 'WO-2026-005',
+    status: 'completed',
+    priority: 'normal',
+    intake_notes: 'Blue Trek FX 3 — full overhaul',
+    diagnosis_notes: 'Drivetrain worn.',
+    internal_notes: null,
+    estimated_completion: null,
+    labor_estimate: 199,
+    parts_estimate: 44.99,
+    actual_labor: 199,
+    actual_parts: 44.99,
+    completed_at: '2026-02-09T16:00:00.000Z',
+    created_at: '2026-02-08T16:00:00.000Z',
+    updated_at: '2026-02-09T16:00:00.000Z',
+    assigned_to: 'demo-user-001',
+  },
 ]
+
+export const mockWorkOrderItems: Record<string, WOLineItem[]> = {
+  'wo-004': [
+    { id: 'li-tune-jane', type: 'labor', product_id: 'prod-011', name: 'Basic Tune-Up', quantity: 1, unit_price: 75, total: 75 },
+  ],
+  'wo-005': [
+    { id: 'li-overhaul-marco', type: 'labor', product_id: 'prod-012', name: 'Full Overhaul', quantity: 1, unit_price: 199, total: 199 },
+    { id: 'li-tune-marco', type: 'labor', product_id: 'prod-011', name: 'Basic Tune-Up', quantity: 1, unit_price: 75, total: 75 },
+  ],
+}
 
 // --- Demo Statistics ---
 
