@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CatalogImport } from '@/components/catalog-import'
 import { toast } from 'sonner'
 import { Search, Plus, MoreHorizontal, Package, Edit, Trash2, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -357,7 +358,7 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1><div className="mt-3"><CatalogImport /></div>
           <p className="text-sm text-muted-foreground">
             Manage your products, stock levels, and pricing.
           </p>

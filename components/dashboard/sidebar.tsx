@@ -11,29 +11,31 @@ import {
   Package,
   Users,
   Wrench,
+  ClipboardCheck,
   Settings,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useNavigationPreferences } from './navigation-preferences'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/pos', label: 'Point of Sale', icon: ShoppingCart },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/check-in', label: 'Check-in', icon: ClipboardCheck },
   { href: '/work-orders', label: 'Work Orders', icon: Wrench },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
-export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
+export function Sidebar() {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
+  const { collapsed, toggleSidebar } = useNavigationPreferences()
 
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r bg-card transition-all duration-300',
+        'flex h-screen shrink-0 flex-col border-r bg-card transition-all duration-300',
         collapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -49,7 +51,9 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleSidebar}
+          title="Toggle sidebar (Tab)"
+          aria-expanded={!collapsed}
           className="h-8 w-8"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -65,6 +69,8 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
+                title={collapsed ? item.label : undefined}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   isActive
@@ -83,6 +89,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
       <div className="border-t p-2">
         <Link
           href="/settings"
+          aria-label="Settings"
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
             pathname === '/settings'

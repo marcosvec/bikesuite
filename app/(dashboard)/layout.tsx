@@ -1,3 +1,4 @@
+import { NavigationPreferencesProvider, ProtectedWorkspace } from '@/components/dashboard/navigation-preferences'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { ScreenSizeGuard } from '@/components/dashboard/screen-size-guard'
@@ -10,6 +11,7 @@ export default function DashboardLayout({
 }) {
   return (
     <DemoProvider isDemo>
+      <NavigationPreferencesProvider>
       <div className="flex h-screen flex-col overflow-hidden">
         <ScreenSizeGuard />
         <div className="flex flex-1 overflow-hidden">
@@ -17,12 +19,13 @@ export default function DashboardLayout({
           <div className="flex flex-1 flex-col overflow-hidden">
             <Header />
             {/* No p-6 here — each page manages its own padding */}
-            <main className="flex-1 overflow-y-auto">
+            <ProtectedWorkspace>
               {children}
-            </main>
+            </ProtectedWorkspace>
           </div>
         </div>
       </div>
+    </NavigationPreferencesProvider>
     </DemoProvider>
   )
 }
