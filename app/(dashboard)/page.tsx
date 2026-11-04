@@ -13,10 +13,15 @@ import {
 import { DollarSign, Wrench, AlertTriangle, Users } from 'lucide-react'
 import { DemoBanner } from '@/components/demo-banner'
 import { PromisedPickup } from '@/components/promised-pickup'
+import { useEffect, useState } from 'react'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 
 export default function DashboardPage() {
   const { customers, transactions, workOrders, products } = useDemoStore()
+  const [saleId, setSaleId] = useState<string | null>(null)
+  useEffect(() => {
+    setSaleId(new URLSearchParams(window.location.search).get('sale'))
+  }, [])
 
   function getCustomerName(customerId: string | null): string {
     if (!customerId) return 'Walk-in'
@@ -87,7 +92,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Latest sales and returns</CardDescription>
+            <CardDescription>{saleId ? 'Sale from search' : 'Latest sales and returns'}</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -100,7 +105,7 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.slice(0, 3).map((transaction) => (
+                {(saleId ? transactions.filter(transaction => transaction.id === saleId) : transactions.slice(0, 3)).map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.transaction_number}</TableCell>
                     <TableCell>{getCustomerName(transaction.customer_id)}</TableCell>

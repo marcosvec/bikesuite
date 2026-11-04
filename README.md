@@ -135,8 +135,17 @@ that has no line items yet, and the total shows that estimate so it is not a hid
 Collect Payment on a Ready order writes a completed sale to `bikesuite_transactions`, updates
 that customer's spend and visit count when the order has one, and stores a demo receipt in
 `bikesuite_receipts`. The receipt can be printed from the browser. It says that no card or cash
-was captured. Work-order tax stays at 8%. Reset demo data clears receipts with the other
-browser keys. Paying the same order twice does not create a second receipt.
+was captured. Paying the same order twice does not create a second receipt.
+
+The shop has one tax rate, edited in Settings > General. The default is 8%. Point of Sale and new
+work-order receipts use it, and the seeded sales were recorded at 8% too. Changing the rate does
+not rewrite a sale that was already saved. Reset demo data restores 8%.
+
+Header search covers customers, seeded bikes, work orders, and sales. Reset demo data is in the
+header menu and at the bottom of Settings. It asks before clearing this browser.
+
+On a phone or tablet the sidebar becomes a menu, and the work-order board stacks into one column
+with jump links. The old screen-size block is gone.
 
 ## Verification
 
@@ -159,7 +168,8 @@ keyboard behavior, catalog validation, bulk/category imports, duplicate handling
 failed downloads, storage failures, corrupt saved catalogs, check-in creation,
 immediate-work status, hiding finished orders, creating a customer in the shared
 customer store, picking an existing customer, optional promised pickup times,
-work-order stock reservations, receipts, and the status board.
+work-order stock reservations, receipts, the status board, the shared tax rate,
+shop search, and demo reset.
 
 Current catalog coverage is limited: Trek's public US bicycle listing has 225
 model/frameset records; Giant has 67 family references. These snapshots were collected
@@ -174,7 +184,6 @@ buttons are intentional; no missing source is represented by fake data.
 - The lock screen accepts any password, including a blank one. It does not protect the data.
 - Catalog refresh requires Windows PowerShell. Linux and the Pages workflow only run the collector unit tests.
 - Fuji, SE Bikes, Cannondale, and J&B Importers stay disabled. Giant records are model families, and that snapshot is not pagination-complete.
-- Viewports narrower than 768px or shorter than 540px are blocked by the screen-size guard.
 - `npm audit` reports moderate advisories in the ESLint toolchain (`minimatch`). They are not part of the static demo bundle and are not force-upgraded here.
 
 ## License

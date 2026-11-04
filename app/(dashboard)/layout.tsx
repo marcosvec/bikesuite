@@ -1,7 +1,6 @@
 import { NavigationPreferencesProvider, ProtectedWorkspace } from '@/components/dashboard/navigation-preferences'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
-import { ScreenSizeGuard } from '@/components/dashboard/screen-size-guard'
 import { DemoProvider } from '@/lib/demo/demo-context'
 
 export default function DashboardLayout({
@@ -13,7 +12,6 @@ export default function DashboardLayout({
     <DemoProvider isDemo>
       <NavigationPreferencesProvider>
       <div className="flex h-screen flex-col overflow-hidden">
-        <ScreenSizeGuard />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <div className="flex flex-1 flex-col overflow-hidden">

@@ -5,28 +5,9 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Users,
-  Wrench,
-  ClipboardCheck,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Settings } from 'lucide-react'
 import { useNavigationPreferences } from './navigation-preferences'
-
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/pos', label: 'Point of Sale', icon: ShoppingCart },
-  { href: '/inventory', label: 'Inventory', icon: Package },
-  { href: '/customers', label: 'Customers', icon: Users },
-  { href: '/check-in', label: 'Check-in', icon: ClipboardCheck },
-  { href: '/work-orders', label: 'Work Orders', icon: Wrench },
-  { href: '/settings', label: 'Settings', icon: Settings },
-]
+import { navItems } from './nav-items'
 
 function currentPath(pathname: string) {
   if (pathname === '/') return '/'
@@ -41,7 +22,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex h-screen shrink-0 flex-col border-r bg-card transition-all duration-300',
+        'hidden h-screen shrink-0 flex-col border-r bg-card transition-all duration-300 md:flex',
         collapsed ? 'w-16' : 'w-64'
       )}
     >

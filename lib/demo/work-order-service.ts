@@ -1,6 +1,7 @@
 import type { Customer, Product, Transaction, WorkOrder } from '@/lib/types/database'
+import { DEFAULT_TAX_RATE, saleTax } from '@/lib/demo/shop-settings'
 
-export const SERVICE_TAX_RATE = 0.08
+export const SERVICE_TAX_RATE = DEFAULT_TAX_RATE
 
 export type WOLineItem = {
   id: string
@@ -122,6 +123,7 @@ export function restorePart(
 export function quoteWorkOrder(
   order: Pick<WorkOrder, 'labor_estimate' | 'parts_estimate'>,
   items: WOLineItem[],
+  taxRate = SERVICE_TAX_RATE,
 ): WorkOrderQuote {
   const laborItems = items.filter(item => item.type === 'labor')
   const partItems = items.filter(item => item.type === 'part')
@@ -130,7 +132,7 @@ export function quoteWorkOrder(
   const labor = cents(usingLaborEstimate ? order.labor_estimate : laborItems.reduce((sum, item) => sum + item.total, 0))
   const parts = cents(usingPartsEstimate ? order.parts_estimate : partItems.reduce((sum, item) => sum + item.total, 0))
   const subtotal = cents(labor + parts)
-  const tax = cents(subtotal * SERVICE_TAX_RATE)
+  const tax = saleTax(subtotal, taxRate)
   return {
     labor,
     parts,
@@ -145,8 +147,9 @@ export function quoteWorkOrder(
 export function chargeLines(
   order: Pick<WorkOrder, 'labor_estimate' | 'parts_estimate'>,
   items: WOLineItem[],
+  taxRate = SERVICE_TAX_RATE,
 ): ServiceReceiptLine[] {
-  const quote = quoteWorkOrder(order, items)
+  const quote = quoteWorkOrder(order, items, taxRate)
   const lines: ServiceReceiptLine[] = items.map(item => ({
     name: item.name,
     quantity: item.quantity,
@@ -241,6 +244,7 @@ export function settleWorkOrder(input: {
   items: WOLineItem[]
   method: 'cash' | 'card'
   customers: Customer[]
+  taxRate?: number
   now?: Date
   ids?: { transactionId: string; receiptId: string; transactionNumber: string }
 }): {
@@ -251,7 +255,8 @@ export function settleWorkOrder(input: {
 } {
   const now = input.now ?? new Date()
   const iso = now.toISOString()
-  const quote = quoteWorkOrder(input.order, input.items)
+  const taxRate = input.taxRate ?? SERVICE_TAX_RATE
+  const quote = quoteWorkOrder(input.order, input.items, taxRate)
   const transactionId = input.ids?.transactionId ?? `trans-${crypto.randomUUID()}`
   const receiptId = input.ids?.receiptId ?? `rcpt-${crypto.randomUUID()}`
   const transactionNumber = input.ids?.transactionNumber
@@ -266,7 +271,7 @@ export function settleWorkOrder(input: {
     type: 'sale',
     status: 'completed',
     subtotal: quote.subtotal,
-    tax_rate: SERVICE_TAX_RATE,
+    tax_rate: taxRate,
     tax_amount: quote.tax,
     discount_amount: 0,
     total: quote.total,
@@ -282,9 +287,9 @@ export function settleWorkOrder(input: {
     workOrderNumber: input.order.work_order_number,
     customerName: customerName(input.order.customer_id, input.customers),
     method: input.method,
-    lines: chargeLines(input.order, input.items),
+    lines: chargeLines(input.order, input.items, taxRate),
     subtotal: quote.subtotal,
-    taxRate: SERVICE_TAX_RATE,
+    taxRate,
     tax: quote.tax,
     total: quote.total,
     promisedPickup: input.order.estimated_completion,

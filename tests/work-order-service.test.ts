@@ -134,6 +134,7 @@ it('clears demo receipts along with the other browser stores', () => {
   expect(DEMO_RESET_KEYS).toEqual([
     'bikesuite_products',
     'bikesuite_customers',
+    'bikesuite_bikes',
     'bikesuite_work_orders',
     'bikesuite_work_order_items',
     'bikesuite_transactions',
