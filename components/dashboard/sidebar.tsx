@@ -11,29 +11,37 @@ import {
   Package,
   Users,
   Wrench,
+  ClipboardCheck,
   Settings,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useNavigationPreferences } from './navigation-preferences'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/pos', label: 'Point of Sale', icon: ShoppingCart },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/check-in', label: 'Check-in', icon: ClipboardCheck },
   { href: '/work-orders', label: 'Work Orders', icon: Wrench },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
-export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
+function currentPath(pathname: string) {
+  if (pathname === '/') return '/'
+  return pathname.replace(/\/+$/, '')
+}
+
+export function Sidebar() {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
+  const path = currentPath(pathname)
+  const { collapsed, toggleSidebar } = useNavigationPreferences()
 
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r bg-card transition-all duration-300',
+        'flex h-screen shrink-0 flex-col border-r bg-card transition-all duration-300',
         collapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -49,7 +57,9 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleSidebar}
+          title="Toggle sidebar (Tab)"
+          aria-expanded={!collapsed}
           className="h-8 w-8"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -60,11 +70,13 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
       <ScrollArea className="flex-1 py-2">
         <nav className="flex flex-col gap-1 px-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = path === item.href
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
+                title={collapsed ? item.label : undefined}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   isActive
@@ -83,9 +95,10 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
       <div className="border-t p-2">
         <Link
           href="/settings"
+          aria-label="Settings"
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            pathname === '/settings'
+            path === '/settings'
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
             collapsed && 'justify-center'

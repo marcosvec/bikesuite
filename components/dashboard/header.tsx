@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { useNavigationPreferences } from './navigation-preferences'
 import Link from 'next/link'
 import {
   DropdownMenu,
@@ -8,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Moon, Sun, Waves, Menu, User } from 'lucide-react'
+import { Moon, Sun, Waves, Menu, User, LockKeyhole } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 interface HeaderProps {
@@ -18,6 +19,7 @@ interface HeaderProps {
 
 export function Header({ children, onMenuToggle }: HeaderProps) {
   const { setTheme, theme } = useTheme()
+  const { lockWorkspace, locked } = useNavigationPreferences()
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-card px-6">
@@ -31,6 +33,7 @@ export function Header({ children, onMenuToggle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={lockWorkspace} disabled={locked}><LockKeyhole className="mr-2 size-4" />Lock</Button>
         <Button
           variant="ghost"
           size="icon"

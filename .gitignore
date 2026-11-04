@@ -30,3 +30,6 @@ next-env.d.ts
 # Windows
 desktop.ini
 Thumbs.db
+# Python collector caches
+__pycache__/
+*.py[cod]

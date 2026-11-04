@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { NavigationSettings } from '@/components/dashboard/navigation-preferences'
 import { useTheme } from 'next-themes'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -358,9 +359,13 @@ export default function SettingsPage() {
       'bikesuite_work_order_items',
       'bikesuite_transactions',
       SETTINGS_KEY,
+      'bikesuite_navigation_preferences',
+      'bikesuite_reference_catalog',
     ]) {
       window.localStorage.removeItem(key)
     }
+    window.sessionStorage.removeItem('bikesuite_workspace_unlocked')
+    window.sessionStorage.removeItem('bikesuite_last_activity')
     window.location.reload()
   }
 
@@ -394,7 +399,7 @@ export default function SettingsPage() {
 
         <div className="min-w-0 flex-1">
           {activeSection === 'appearance'  && <AppearanceSection />}
-          {activeSection === 'general'      && <GeneralSection />}
+          {activeSection === 'general'      && <div className="space-y-4"><NavigationSettings /><GeneralSection /></div>}
           {activeSection === 'work-orders'  && <WorkOrdersSection />}
         </div>
       </div>

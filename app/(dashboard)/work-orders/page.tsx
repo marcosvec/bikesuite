@@ -34,6 +34,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { WorkOrder, Product } from '@/lib/types/database'
+import { PromisedPickup } from '@/components/promised-pickup'
+import { createWorkOrder } from '@/lib/demo/create-work-order'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 
@@ -122,14 +124,15 @@ function getStock(p: Product): number | null {
 
 function ProductSearchInput({
   type,
+  products,
   selectedName,
   onSelect,
 }: {
   type:         'labor' | 'part'
+  products:     Product[]
   selectedName: string
   onSelect:     (p: Product) => void
 }) {
-  const { products } = useDemoStore()
   const [query, setQuery] = useState(selectedName)
   const [open,  setOpen]  = useState(false)
   // Ref so PopoverContent can tell if a pointer event came from the Input
@@ -278,11 +281,11 @@ const emptyWOForm: NewWOForm = {
 
 // ── New Work Order dialog ────────────────────────────────────────────────────
 function NewWorkOrderDialog({
-  open, onOpenChange, onSave,
+  open, onOpenChange, onSave, customers,
 }: {
   open: boolean; onOpenChange: (v: boolean) => void; onSave: (wo: WorkOrder) => void
+  customers: { id: string; first_name: string; last_name: string }[]
 }) {
-  const { customers } = useDemoStore()
   const [form, setForm] = useState<NewWOForm>(emptyWOForm)
   useEffect(() => { if (open) setForm(emptyWOForm) }, [open])
 
@@ -292,32 +295,19 @@ function NewWorkOrderDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.bikeDescription.trim()) return
-
-    // Read "Assume Immediate Work" from localStorage settings
-    let assumeImmediate = false
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('bikesuite_settings') : null
-      if (raw) assumeImmediate = !!JSON.parse(raw).assumeImmediateWork
-    } catch { /* use default */ }
-
-    const now = new Date().toISOString()
-    const num = `WO-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`
-    const wo: WorkOrder = {
-      id: `wo-${Date.now()}`, organization_id: 'demo-org', location_id: 'loc-001',
-      customer_id: form.customerId === 'walk-in' ? null : form.customerId || null, customer_bike_id: null,
-      work_order_number: num,
-      status: assumeImmediate ? 'in_progress' : 'intake',
-      priority: form.priority,
-      intake_notes: [form.bikeDescription, form.intakeNotes].filter(Boolean).join(' — ') || null,
-      diagnosis_notes: null, internal_notes: null, estimated_completion: null,
-      labor_estimate: parseFloat(form.laborEstimate) || 0,
-      parts_estimate: parseFloat(form.partsEstimate) || 0,
-      actual_labor: 0, actual_parts: 0, completed_at: null,
-      created_at: now, updated_at: now, assigned_to: null,
+      onSave(createWorkOrder({
+        customerId: form.customerId,
+        bikeDescription: form.bikeDescription,
+        intakeNotes: form.intakeNotes,
+        priority: form.priority,
+        laborEstimate: form.laborEstimate,
+        partsEstimate: form.partsEstimate,
+      }))
+      onOpenChange(false)
+    } catch {
+      return
     }
-    onSave(wo)
-    onOpenChange(false)
   }
 
   return (
@@ -425,6 +415,7 @@ function WorkOrderPaymentDialog({
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {workOrder.work_order_number}
               </p>
+              <PromisedPickup value={workOrder.estimated_completion} className="mb-2 text-xs text-muted-foreground" />
               {lineItems.length > 0 ? lineItems.map(item => (
                 <div key={item.id} className="flex justify-between gap-2">
                   <span className="min-w-0 truncate text-muted-foreground">
@@ -474,11 +465,13 @@ const emptyLineItemForm: AddLineItemForm = {
 }
 
 function WorkOrderDetailDialog({
-  workOrder, lineItems, onClose, onStatusChange, onMarkReady,
+  workOrder, lineItems, customers, products, onClose, onStatusChange, onMarkReady,
   onAddLineItem, onRemoveLineItem, onOpenPayment,
 }: {
   workOrder:        WorkOrder | null
   lineItems:        WOLineItem[]
+  customers:        { id: string; first_name: string; last_name: string }[]
+  products:         Product[]
   onClose:          () => void
   onStatusChange:   (id: string, status: WorkOrderStatus) => void
   onMarkReady:      (id: string) => void
@@ -486,7 +479,6 @@ function WorkOrderDetailDialog({
   onRemoveLineItem: (woId: string, itemId: string) => void
   onOpenPayment:    () => void
 }) {
-  const { customers, products } = useDemoStore()
   const [addForm,      setAddForm]      = useState<AddLineItemForm>(emptyLineItemForm)
   const [showAddForm,  setShowAddForm]  = useState(false)
 
@@ -583,6 +575,9 @@ function WorkOrderDetailDialog({
               <p className="text-xs text-muted-foreground">Created</p>
               <p>{new Date(workOrder.created_at).toLocaleDateString()}</p>
             </div>
+            <div className="col-span-2">
+              <PromisedPickup value={workOrder.estimated_completion} showEmpty className="text-sm text-muted-foreground" />
+            </div>
             {workOrder.intake_notes && (
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">Intake Notes</p>
@@ -650,6 +645,7 @@ function WorkOrderDetailDialog({
                     <ProductSearchInput
                       key={addForm.type}
                       type={addForm.type}
+                      products={products}
                       selectedName={addForm.name}
                       onSelect={handleProductSelect}
                     />
@@ -810,8 +806,13 @@ function LineItemRow({ item, onRemove }: { item: WOLineItem; onRemove: () => voi
 
 // ── Work order card (gradient glow on hover) ──────────────────────────────────
 
-function WorkOrderCard({ order, onClick }: { order: WorkOrder; onClick: () => void }) {
-  const { customers } = useDemoStore()
+function WorkOrderCard({
+  order, customers, onClick,
+}: {
+  order: WorkOrder
+  customers: { id: string; first_name: string; last_name: string }[]
+  onClick: () => void
+}) {
   const total = (order.actual_labor || order.labor_estimate) + (order.actual_parts || order.parts_estimate)
   return (
     <div className="group relative rounded-xl">
@@ -839,6 +840,7 @@ function WorkOrderCard({ order, onClick }: { order: WorkOrder; onClick: () => vo
               <Clock className="size-3.5 shrink-0" />
               <span>Created {new Date(order.created_at).toLocaleDateString()}</span>
             </div>
+            <PromisedPickup value={order.estimated_completion} />
           </div>
           {order.intake_notes && (
             <p className="line-clamp-2 text-xs text-muted-foreground">{order.intake_notes}</p>
@@ -941,7 +943,7 @@ export default function WorkOrdersPage() {
             {filteredOrders.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredOrders.map(order => (
-                  <WorkOrderCard key={order.id} order={order} onClick={() => setDetailOrder(order)} />
+                  <WorkOrderCard key={order.id} order={order} customers={customers} onClick={() => setDetailOrder(order)} />
                 ))}
               </div>
             ) : (
@@ -962,9 +964,10 @@ export default function WorkOrdersPage() {
         ))}
       </Tabs>
 
-      <NewWorkOrderDialog open={newDialogOpen} onOpenChange={setNewDialogOpen} onSave={handleCreate} />
+      <NewWorkOrderDialog open={newDialogOpen} onOpenChange={setNewDialogOpen} onSave={handleCreate} customers={customers} />
       <WorkOrderDetailDialog
         workOrder={detailOrder} lineItems={currentLineItems}
+        customers={customers} products={products}
         onClose={() => setDetailOrder(null)}
         onStatusChange={handleStatusChange} onMarkReady={handleMarkReady}
         onAddLineItem={handleAddLineItem} onRemoveLineItem={handleRemoveLineItem}
