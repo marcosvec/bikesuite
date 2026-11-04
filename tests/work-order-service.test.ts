@@ -136,6 +136,7 @@ it('clears demo receipts along with the other browser stores', () => {
     'bikesuite_customers',
     'bikesuite_bikes',
     'bikesuite_work_orders',
+    'bikesuite_appointments',
     'bikesuite_work_order_items',
     'bikesuite_transactions',
     'bikesuite_receipts',

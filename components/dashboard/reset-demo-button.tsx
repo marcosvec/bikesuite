@@ -27,7 +27,7 @@ export function ResetDemoDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Reset demo data</AlertDialogTitle>
           <AlertDialogDescription>
-            This clears customers, bikes, work orders, sales, receipts, catalog imports, and shop settings in this browser, then reloads the sample shop.
+            This clears customers, bikes, appointments, work orders, sales, receipts, catalog imports, and shop settings in this browser, then reloads the sample shop.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -13,6 +13,7 @@ import { Check, Palette, Settings, Save, Wrench } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { SETTINGS_STORAGE_KEY } from '@/lib/demo/storage-keys'
 import { notifyShopSettingsChanged, parseTaxPercent } from '@/lib/demo/shop-settings'
+import { parseDailyCapacity } from '@/lib/demo/appointments'
 import { ResetDemoButton } from '@/components/dashboard/reset-demo-button'
 
 const sections = [
@@ -128,6 +129,7 @@ type ShopSettings = {
   currency:             string
   // Work Order behaviour
   assumeImmediateWork:  boolean
+  dailyDropoffCapacity: number
 }
 
 const defaultSettings: ShopSettings = {
@@ -141,6 +143,7 @@ const defaultSettings: ShopSettings = {
   taxRate:             '8',
   currency:            'USD',
   assumeImmediateWork: false,
+  dailyDropoffCapacity: 6,
 }
 
 function loadSettings(): ShopSettings {
@@ -308,6 +311,7 @@ function GeneralSection() {
 function WorkOrdersSection() {
   const [settings, setSettings] = useState<ShopSettings>(defaultSettings)
   const [flash, setFlash] = useState(false)
+  const [capacityError, setCapacityError] = useState<string | null>(null)
 
   useEffect(() => { setSettings(loadSettings()) }, [])
 
@@ -350,6 +354,43 @@ function WorkOrdersSection() {
               checked={settings.assumeImmediateWork}
               onCheckedChange={v => handleToggle('assumeImmediateWork', v)}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="dropoff-capacity">Drop-off capacity per day</Label>
+            <Input
+              id="dropoff-capacity"
+              className="max-w-32"
+              type="number"
+              min={1}
+              max={24}
+              step={1}
+              value={settings.dailyDropoffCapacity}
+              aria-invalid={capacityError ? true : undefined}
+              aria-describedby={capacityError ? 'capacity-error' : undefined}
+              onChange={event => {
+                setCapacityError(null)
+                const nextValue = Number(event.target.value)
+                setSettings(current => ({ ...current, dailyDropoffCapacity: Number.isFinite(nextValue) ? nextValue : current.dailyDropoffCapacity }))
+              }}
+              onBlur={() => {
+                const capacity = parseDailyCapacity(settings.dailyDropoffCapacity)
+                if (capacity === null) {
+                  setCapacityError('Enter a whole number from 1 to 24.')
+                  return
+                }
+                const next = { ...loadSettings(), ...settings, dailyDropoffCapacity: capacity }
+                setSettings(next)
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+                notifyShopSettingsChanged()
+                setFlash(true)
+                setTimeout(() => setFlash(false), 1800)
+              }}
+            />
+            <p className="text-sm text-muted-foreground max-w-sm">
+              How many drop-off appointments the calendar will take on one day. Hours run from 9 AM to 4 PM.
+            </p>
+            {capacityError && <p id="capacity-error" role="alert" className="text-xs text-destructive">{capacityError}</p>}
           </div>
 
           {flash && (

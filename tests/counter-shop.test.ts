@@ -77,7 +77,7 @@ describe('stock in and out, then payment', () => {
 
 describe('shop search and reset', () => {
   it('finds a customer, a bike, a work order, and a sale', () => {
-    expect(searchShop('pedalini', shop).map(hit => hit.kind)).toEqual(['customer', 'bike', 'work-order', 'sale'])
+    expect(searchShop('pedalini', shop).map(hit => hit.kind)).toEqual(['customer', 'bike', 'work-order', 'work-order', 'sale'])
     expect(searchShop('WTU2019FX3', shop).map(hit => hit.kind)).toEqual(['bike'])
     expect(searchShop('TXN-2026-002', shop)[0]).toMatchObject({ kind: 'sale', href: '/?sale=trans-002' })
     expect(searchShop('   ', shop)).toEqual([])

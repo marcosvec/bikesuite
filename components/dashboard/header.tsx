@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { navItems } from './nav-items'
 import { ShopSearch } from './shop-search'
 import { ResetDemoDialog } from './reset-demo-button'
+import { LowStockMark, useLowStockCount } from './low-stock-mark'
 
 interface HeaderProps {
   children?: React.ReactNode
@@ -34,6 +35,7 @@ export function Header({ children }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const path = currentPath(usePathname())
+  const lowStock = useLowStockCount()
 
   return (
     <header className="flex h-14 items-center gap-2 border-b bg-card px-3 sm:px-6">
@@ -51,7 +53,7 @@ export function Header({ children }: HeaderProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                aria-label={item.label}
+                aria-label={item.href === '/inventory' && lowStock ? `${item.label}, ${lowStock} to reorder` : item.label}
                 onClick={() => setMenuOpen(false)}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium',
@@ -60,6 +62,7 @@ export function Header({ children }: HeaderProps) {
               >
                 <item.icon className="size-4" />
                 {item.label}
+                {item.href === '/inventory' && <LowStockMark />}
               </Link>
             ))}
           </nav>

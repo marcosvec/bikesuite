@@ -15,6 +15,7 @@ import { DemoBanner } from '@/components/demo-banner'
 import { PromisedPickup } from '@/components/promised-pickup'
 import { useEffect, useState } from 'react'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
+import { lowStockParts } from '@/lib/demo/reports'
 
 export default function DashboardPage() {
   const { customers, transactions, workOrders, products } = useDemoStore()
@@ -35,11 +36,7 @@ export default function DashboardPage() {
   const activeWorkOrders = workOrders.filter(
     order => !['completed', 'picked_up'].includes(order.status),
   ).length
-  const lowStockItems = products.filter(product => {
-    if (product.is_service) return false
-    const inventory = product.inventory?.[0]
-    return inventory !== undefined && inventory.quantity <= inventory.reorder_point
-  }).length
+  const lowStockItems = lowStockParts(products).length
 
   const displayStats = [
     {

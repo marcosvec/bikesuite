@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { Product } from '@/lib/types/database'
 import { mockProducts, mockCategories } from '@/lib/demo/mock-data'
+import { isLowStock, lowStockParts } from '@/lib/demo/reports'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
 
 type StockStatus = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock'
@@ -325,7 +326,7 @@ export default function InventoryPage() {
 
     if (statusFilter !== 'all') {
       if (product.is_service) return false
-      if (getStockStatus(product) !== statusFilter) return false
+      if (statusFilter === 'low_stock' ? !isLowStock(product) : getStockStatus(product) !== statusFilter) return false
     }
 
     return true
@@ -358,7 +359,19 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
+            {lowStockParts(products).length > 0 && (
+              <button
+                type="button"
+                className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-black"
+                aria-label={`${lowStockParts(products).length} parts to reorder`}
+                onClick={() => setStatusFilter('low_stock')}
+              >
+                {lowStockParts(products).length} to reorder
+              </button>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             Manage your products, stock levels, and pricing.
           </p>
