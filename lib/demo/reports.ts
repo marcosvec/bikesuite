@@ -1,6 +1,6 @@
 import type { Product, Transaction, WorkOrder } from '@/lib/types/database'
 import type { WOLineItem } from '@/lib/demo/work-order-service'
-import { roundMoney } from '@/lib/demo/shop-settings'
+import { DEFAULT_SHOP_TIME_ZONE, roundMoney } from '@/lib/demo/shop-settings'
 
 export type RevenueBucket = {
   key: string
@@ -21,12 +21,28 @@ export type LowStockPart = {
   reorderPoint: number
 }
 
-function dayKey(iso: string) {
-  return iso.slice(0, 10)
+function zoneOrDefault(timeZone: string) {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone })
+    return timeZone
+  } catch {
+    return DEFAULT_SHOP_TIME_ZONE
+  }
 }
 
-function mondayKey(iso: string) {
-  const [year, month, day] = dayKey(iso).split('-').map(Number)
+export function shopCalendarDate(iso: string, timeZone = DEFAULT_SHOP_TIME_ZONE) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: zoneOrDefault(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+function mondayOf(civilDate: string) {
+  const [year, month, day] = civilDate.split('-').map(Number)
   const date = new Date(Date.UTC(year, month - 1, day))
   const weekday = date.getUTCDay()
   const diff = weekday === 0 ? -6 : 1 - weekday
@@ -39,6 +55,7 @@ function buckets(transactions: Transaction[], keyFor: (iso: string) => string): 
   for (const sale of transactions) {
     if (sale.status !== 'completed') continue
     const key = keyFor(sale.created_at)
+    if (!key) continue
     const current = totals.get(key) ?? { key, total: 0, count: 0 }
     current.total = roundMoney(current.total + sale.total)
     current.count += 1
@@ -47,12 +64,15 @@ function buckets(transactions: Transaction[], keyFor: (iso: string) => string): 
   return [...totals.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
 
-export function revenueByDay(transactions: Transaction[]) {
-  return buckets(transactions, dayKey)
+export function revenueByDay(transactions: Transaction[], timeZone = DEFAULT_SHOP_TIME_ZONE) {
+  return buckets(transactions, iso => shopCalendarDate(iso, timeZone))
 }
 
-export function revenueByWeek(transactions: Transaction[]) {
-  return buckets(transactions, mondayKey)
+export function revenueByWeek(transactions: Transaction[], timeZone = DEFAULT_SHOP_TIME_ZONE) {
+  return buckets(transactions, iso => {
+    const day = shopCalendarDate(iso, timeZone)
+    return day ? mondayOf(day) : ''
+  })
 }
 
 export function finishedOrders(orders: WorkOrder[]) {

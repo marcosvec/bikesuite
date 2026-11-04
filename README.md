@@ -155,8 +155,9 @@ order, even when Assume Immediate Work is on. Cancelling a booking frees that da
 
 ## Reports
 
-Reports reads the sales and work orders in this browser. It shows revenue by day and by Monday
-week, labor versus parts on finished work orders, the labor lines used most, the average time
+Reports reads the sales and work orders in this browser. Revenue days and weeks use the shop
+time zone from Settings, which defaults to America/New_York, and weeks start on Monday. It also shows
+labor versus parts on finished work orders, the labor lines used most, the average time
 from intake to finished, and parts at or below their reorder point. Inventory shows the same
 reorder count as a badge.
 

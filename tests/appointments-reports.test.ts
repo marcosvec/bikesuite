@@ -77,6 +77,25 @@ describe('demo reports', () => {
     expect(weeks).toEqual([{ key: '2026-02-09', total: 2585.17, count: 4 }])
   })
 
+  it('keeps a sale on the shop day when it is still the previous evening in America/New_York', () => {
+    const evening = {
+      ...mockTransactions[0],
+      id: 'trans-before-midnight',
+      created_at: '2026-02-11T04:30:00.000Z',
+      total: 10,
+    }
+    const morning = { ...evening, id: 'trans-after-midnight', created_at: '2026-02-11T05:00:00.000Z', total: 20 }
+    expect(revenueByDay([evening], 'America/New_York').map(day => day.key)).toEqual(['2026-02-10'])
+    expect(revenueByDay([morning], 'America/New_York').map(day => day.key)).toEqual(['2026-02-11'])
+    expect(revenueByDay([evening], 'UTC').map(day => day.key)).toEqual(['2026-02-11'])
+    const sundayNight = { ...evening, id: 'trans-sunday', created_at: '2026-02-16T04:30:00.000Z', total: 10 }
+    const mondayMorning = { ...morning, id: 'trans-monday', created_at: '2026-02-16T05:00:00.000Z', total: 20 }
+    expect(revenueByWeek([sundayNight, mondayMorning], 'America/New_York')).toEqual([
+      { key: '2026-02-09', total: 10, count: 1 },
+      { key: '2026-02-16', total: 20, count: 1 },
+    ])
+  })
+
   it('splits labor and parts, ranks services, and averages turnaround', () => {
     const finished = mockWorkOrders.filter(order => order.id === 'wo-004' || order.id === 'wo-005')
     expect(laborVersusParts(finished)).toEqual({ labor: 274, parts: 69.98 })

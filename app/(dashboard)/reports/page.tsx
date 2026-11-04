@@ -8,6 +8,7 @@ import {
 import { mockTransactions, mockWorkOrderItems, mockWorkOrders } from '@/lib/demo/mock-data'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
+import { useShopTimeZone } from '@/lib/demo/use-shop-tax-rate'
 import {
   averageTurnaroundHours,
   laborVersusParts,
@@ -31,9 +32,10 @@ function hoursLabel(hours: number | null) {
 
 export default function ReportsPage() {
   const { transactions, workOrders, products } = useDemoStore()
+  const timeZone = useShopTimeZone()
   const [lineItems] = usePersistentState<Record<string, WOLineItem[]>>('bikesuite_work_order_items', mockWorkOrderItems)
-  const days = revenueByDay(transactions.length ? transactions : mockTransactions)
-  const weeks = revenueByWeek(transactions)
+  const days = revenueByDay(transactions.length ? transactions : mockTransactions, timeZone)
+  const weeks = revenueByWeek(transactions, timeZone)
   const split = laborVersusParts(workOrders)
   const services = topServices(lineItems)
   const turnaround = averageTurnaroundHours(workOrders)
@@ -52,7 +54,7 @@ export default function ReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle><h2>Revenue by day</h2></CardTitle>
-            <CardDescription>Completed sales, grouped by the UTC date they were recorded.</CardDescription>
+            <CardDescription>Completed sales, grouped by calendar day in {timeZone}.</CardDescription>
           </CardHeader>
           <CardContent>
             {days.length === 0 && <p className="text-sm text-muted-foreground">No completed sales yet.</p>}
@@ -86,7 +88,7 @@ export default function ReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle><h2>Revenue by week</h2></CardTitle>
-            <CardDescription>Weeks start on Monday, in UTC.</CardDescription>
+            <CardDescription>Weeks start on Monday in {timeZone}.</CardDescription>
           </CardHeader>
           <CardContent>
             {weeks.length === 0 && <p className="text-sm text-muted-foreground">No completed sales yet.</p>}

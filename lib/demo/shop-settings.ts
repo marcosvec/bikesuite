@@ -2,6 +2,7 @@ import { SETTINGS_STORAGE_KEY } from '@/lib/demo/storage-keys'
 
 export const DEFAULT_TAX_PERCENT = 8
 export const DEFAULT_TAX_RATE = DEFAULT_TAX_PERCENT / 100
+export const DEFAULT_SHOP_TIME_ZONE = 'America/New_York'
 export const SETTINGS_CHANGED_EVENT = 'bikesuite-settings'
 
 export function roundMoney(value: number) {
@@ -26,6 +27,35 @@ export function taxRateFromSettings(raw: string | null | undefined): number {
     return percent === null ? DEFAULT_TAX_RATE : percent / 100
   } catch {
     return DEFAULT_TAX_RATE
+  }
+}
+
+export function isValidTimeZone(value: string) {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function shopTimeZoneFromSettings(raw: string | null | undefined) {
+  if (!raw) return DEFAULT_SHOP_TIME_ZONE
+  try {
+    const parsed = JSON.parse(raw) as { timeZone?: unknown }
+    const zone = typeof parsed.timeZone === 'string' ? parsed.timeZone.trim() : ''
+    return zone && isValidTimeZone(zone) ? zone : DEFAULT_SHOP_TIME_ZONE
+  } catch {
+    return DEFAULT_SHOP_TIME_ZONE
+  }
+}
+
+export function readShopTimeZone(): string {
+  if (typeof window === 'undefined') return DEFAULT_SHOP_TIME_ZONE
+  try {
+    return shopTimeZoneFromSettings(window.localStorage.getItem(SETTINGS_STORAGE_KEY))
+  } catch {
+    return DEFAULT_SHOP_TIME_ZONE
   }
 }
 
