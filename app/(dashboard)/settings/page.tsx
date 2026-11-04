@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { Check, Palette, Settings, Save, Wrench, RotateCcw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { DEMO_RESET_KEYS, SETTINGS_STORAGE_KEY } from '@/lib/demo/storage-keys'
 
 const sections = [
   { id: 'appearance',   label: 'Appearance',   icon: Palette  },
@@ -111,7 +112,7 @@ function AppearanceSection() {
 
 // ── General settings ──────────────────────────────────────────────────────────
 
-const SETTINGS_KEY = 'bikesuite_settings'
+const SETTINGS_KEY = SETTINGS_STORAGE_KEY
 
 type ShopSettings = {
   shopName:             string
@@ -352,16 +353,7 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState('appearance')
 
   function resetDemo() {
-    for (const key of [
-      'bikesuite_products',
-      'bikesuite_customers',
-      'bikesuite_work_orders',
-      'bikesuite_work_order_items',
-      'bikesuite_transactions',
-      SETTINGS_KEY,
-      'bikesuite_navigation_preferences',
-      'bikesuite_reference_catalog',
-    ]) {
+    for (const key of DEMO_RESET_KEYS) {
       window.localStorage.removeItem(key)
     }
     window.sessionStorage.removeItem('bikesuite_workspace_unlocked')

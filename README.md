@@ -13,7 +13,7 @@ The live demo is [https://bikesuite.marcosvec.com](https://bikesuite.marcosvec.c
 - Inventory with stock, categories, and reference-catalog import
 - Customer records with visit history and spending
 - Check-in desk that opens a work order for a dropped-off bike
-- Work order tracking from intake through pickup
+- Work order board from intake through pickup, with shelf parts and a printable demo receipt
 - Three themes: Light, Dark, and Abyss
 - Browser-local sign-in with a configurable inactivity lock
 
@@ -113,12 +113,30 @@ Check in also creates a work order in `bikesuite_work_orders`. The bike descript
 `intake_notes` because a work order has no separate bike field; notes are appended after an em
 dash. Promised pickup is optional. Leave it blank and the work order has no promised time. A
 chosen time is saved on `estimated_completion` and shown on Check-in, the dashboard, work-order
-cards, the work-order detail, and the payment summary.
+cards, the work-order detail, the payment summary, and the demo receipt.
 
 Orders start at Intake unless Settings > Work Orders > Assume Immediate Work is on, in which
 case they start In Progress. The page lists bikes still in the shop and calls out orders that
 are Ready for pickup. Completed and picked-up orders stay on Work Orders only. Check-in does
 not take payment or add parts.
+
+## Work orders
+
+Work Orders opens on a status board: Intake, In Progress, Waiting on Parts, Ready, and Finished.
+Finished holds both completed and picked-up orders. Cards keeps the older status tabs. Search
+matches the work order number, customer name, intake notes, and diagnosis. Board moves and the
+detail dialog use the same status steps. A completed order can be marked picked up.
+
+Adding a part takes that quantity off the shelf and refuses the add when inventory does not have
+enough, including a fractional quantity. Removing the part puts the quantity back on the first
+stock row. Labor does not change stock. A labor or parts estimate is still included for a side
+that has no line items yet, and the total shows that estimate so it is not a hidden charge.
+
+Collect Payment on a Ready order writes a completed sale to `bikesuite_transactions`, updates
+that customer's spend and visit count when the order has one, and stores a demo receipt in
+`bikesuite_receipts`. The receipt can be printed from the browser. It says that no card or cash
+was captured. Work-order tax stays at 8%. Reset demo data clears receipts with the other
+browser keys. Paying the same order twice does not create a second receipt.
 
 ## Verification
 
@@ -140,7 +158,8 @@ manual locking, portal cleanup (including while turning prompts off), sidebar ti
 keyboard behavior, catalog validation, bulk/category imports, duplicate handling,
 failed downloads, storage failures, corrupt saved catalogs, check-in creation,
 immediate-work status, hiding finished orders, creating a customer in the shared
-customer store, picking an existing customer, and optional promised pickup times.
+customer store, picking an existing customer, optional promised pickup times,
+work-order stock reservations, receipts, and the status board.
 
 Current catalog coverage is limited: Trek's public US bicycle listing has 225
 model/frameset records; Giant has 67 family references. These snapshots were collected
@@ -151,7 +170,7 @@ buttons are intentional; no missing source is represented by fake data.
 
 ## What this demo does not do
 
-- No real authentication, payment capture, inventory sync, or server database. Reset demo data clears this browser only.
+- No real authentication, payment capture, inventory sync, or server database. Reset demo data clears this browser only. A work-order receipt is a printable demo slip, not a captured payment.
 - The lock screen accepts any password, including a blank one. It does not protect the data.
 - Catalog refresh requires Windows PowerShell. Linux and the Pages workflow only run the collector unit tests.
 - Fuji, SE Bikes, Cannondale, and J&B Importers stay disabled. Giant records are model families, and that snapshot is not pagination-complete.
