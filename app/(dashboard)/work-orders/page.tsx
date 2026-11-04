@@ -3,21 +3,20 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import {
-  Search, Plus, Wrench, Clock, User, ChevronRight, Check,
-  Trash2, CreditCard, Banknote, CheckCircle2,
+  Search, Plus, Wrench, Clock, User, Check, Trash2, CreditCard, Banknote,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -35,23 +34,31 @@ import {
 } from '@/components/ui/select'
 import type { WorkOrder, Product } from '@/lib/types/database'
 import { PromisedPickup } from '@/components/promised-pickup'
+import { ServiceReceiptView } from '@/components/work-orders/service-receipt'
+import { WorkOrderBoard } from '@/components/work-orders/status-board'
 import { createWorkOrder } from '@/lib/demo/create-work-order'
+import { RECEIPTS_STORAGE_KEY } from '@/lib/demo/storage-keys'
+import {
+  availableStock,
+  cents,
+  chargeLines,
+  customerName,
+  formatWorkOrderStatus,
+  hasReceipt,
+  matchesWorkOrderQuery,
+  nextWorkOrderActions,
+  quoteWorkOrder,
+  SERVICE_TAX_RATE,
+  reservePart,
+  restorePart,
+  settleWorkOrder,
+  type ServiceReceipt,
+  type WOLineItem,
+} from '@/lib/demo/work-order-service'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 
 // ── Types / constants ─────────────────────────────────────────────────────────
-
-const TAX_RATE = 0.08
-
-export type WOLineItem = {
-  id:           string
-  type:         'labor' | 'part'
-  product_id:   string | null   // linked to inventory
-  name:         string
-  quantity:     number
-  unit_price:   number
-  total:        number
-}
 
 const STATUS_OPTIONS = [
   { value: 'all',           label: 'All' },
@@ -61,25 +68,6 @@ const STATUS_OPTIONS = [
   { value: 'ready',         label: 'Ready' },
   { value: 'completed',     label: 'Completed' },
 ] as const
-
-type StatusFilter    = (typeof STATUS_OPTIONS)[number]['value']
-type WorkOrderStatus = Exclude<StatusFilter, 'all'>
-
-const STATUS_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus | null> = {
-  intake:        'in_progress',
-  in_progress:   'waiting_parts',
-  waiting_parts: 'in_progress',
-  ready:         'completed',
-  completed:     null,
-}
-
-const STATUS_NEXT_LABEL: Record<WorkOrderStatus, string> = {
-  intake:        'Start Work',
-  in_progress:   'Waiting on Parts',
-  waiting_parts: 'Resume Work',
-  ready:         'Mark Completed',
-  completed:     '',
-}
 
 const STATUS_STEP: Record<string, number> = {
   intake: 0, in_progress: 1, waiting_parts: 1,
@@ -104,20 +92,6 @@ const priorityColors: Record<string, string> = {
   rush:   'bg-red-100    text-red-700    border-red-200',
 }
 
-function formatStatus(s: string) {
-  return s.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')
-}
-
-function getCustomerName(customerId: string | null, customers: { id: string; first_name: string; last_name: string }[] = []) {
-  if (!customerId) return 'Walk-in'
-  const c = customers.find(x => x.id === customerId)
-  return c ? `${c.first_name} ${c.last_name}` : 'Unknown'
-}
-
-function getStock(p: Product): number | null {
-  return p.is_service ? null : (p.inventory?.[0]?.quantity ?? 0)
-}
-
 // ── Product search combobox ───────────────────────────────────────────────────
 // Shows service products for "labor" type, physical products for "part" type.
 // Auto-fills price on select; shows stock badge for parts.
@@ -135,6 +109,7 @@ function ProductSearchInput({
 }) {
   const [query, setQuery] = useState(selectedName)
   const [open,  setOpen]  = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
   // Ref so PopoverContent can tell if a pointer event came from the Input
   // itself (in which case it should NOT close the popover).
   const anchorRef = useRef<HTMLInputElement>(null)
@@ -150,6 +125,12 @@ function ProductSearchInput({
       p.name.toLowerCase().includes(query.toLowerCase()) ||
       (p.sku ?? '').toLowerCase().includes(query.toLowerCase())
     )
+  const highlighted = Math.min(activeIndex, Math.max(options.length - 1, 0))
+
+  function choose(product: Product) {
+    onSelect(product)
+    setOpen(false)
+  }
 
   return (
     // Use Radix Popover + PopoverAnchor so the dropdown is portalled to <body>
@@ -159,11 +140,33 @@ function ProductSearchInput({
         <Input
           ref={anchorRef}
           className="h-8 text-xs"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="wo-product-list"
+          aria-autocomplete="list"
+          aria-activedescendant={open && options[highlighted] ? `wo-product-option-${options[highlighted].id}` : undefined}
+          aria-label={type === 'labor' ? 'Search services' : 'Search inventory'}
           placeholder={type === 'labor' ? 'Search services…' : 'Search inventory…'}
           value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onChange={e => { setQuery(e.target.value); setActiveIndex(0); setOpen(true) }}
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}   // reopen if focus was kept but popover was closed
+          onKeyDown={event => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              setOpen(true)
+              setActiveIndex(index => Math.min(options.length - 1, index + 1))
+            } else if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              setOpen(true)
+              setActiveIndex(index => Math.max(0, index - 1))
+            } else if (event.key === 'Escape') {
+              setOpen(false)
+            } else if (event.key === 'Enter' && open && options[highlighted]) {
+              event.preventDefault()
+              choose(options[highlighted])
+            }
+          }}
           autoFocus
         />
       </PopoverAnchor>
@@ -183,18 +186,24 @@ function ProductSearchInput({
           if (anchorRef.current?.contains(e.target as Node)) e.preventDefault()
         }}
       >
-        <div className="max-h-44 overflow-y-auto">
-          {options.length > 0 ? options.map(p => {
-            const stock = getStock(p)
+        <div id="wo-product-list" role="listbox" aria-label={type === 'labor' ? 'Services' : 'Inventory'} className="max-h-44 overflow-y-auto">
+          {options.length > 0 ? options.map((p, index) => {
+            const stock = availableStock(p)
             return (
               <button
                 key={p.id}
+                id={`wo-product-option-${p.id}`}
                 type="button"
-                className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-muted"
+                role="option"
+                aria-selected={index === highlighted}
+                className={cn(
+                  'flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-muted',
+                  index === highlighted && 'bg-muted',
+                )}
+                onMouseEnter={() => setActiveIndex(index)}
                 onMouseDown={e => {
                   e.preventDefault()       // keep focus on the Input
-                  onSelect(p)
-                  setOpen(false)
+                  choose(p)
                 }}
               >
                 <span className="min-w-0 truncate">{p.name}</span>
@@ -232,7 +241,7 @@ const STEPPER_STEPS = ['Intake', 'In Progress', 'Ready', 'Completed']
 function WorkOrderStepper({ status }: { status: string }) {
   const currentStep = STATUS_STEP[status] ?? 0
   return (
-    <div className="flex items-start">
+    <div role="group" className="flex items-start" aria-label={`Progress: ${formatWorkOrderStatus(status)}`}>
       {STEPPER_STEPS.map((label, i) => {
         const done   = i < currentStep
         const active = i === currentStep
@@ -313,7 +322,10 @@ function NewWorkOrderDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>New Work Order</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>New Work Order</DialogTitle>
+          <DialogDescription>Create a repair ticket for a bike dropped off at the shop.</DialogDescription>
+        </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="customer">Customer</Label>
@@ -381,70 +393,46 @@ function WorkOrderPaymentDialog({
   workOrder: WorkOrder | null; lineItems: WOLineItem[]
   onPaid: (method: 'cash' | 'card') => void
 }) {
-  const [paid, setPaid]     = useState(false)
-  const [method, setMethod] = useState<'cash' | 'card' | null>(null)
-  useEffect(() => { if (open) { setPaid(false); setMethod(null) } }, [open])
   if (!workOrder) return null
-
-  const laborTotal = lineItems.filter(i => i.type === 'labor').reduce((s, i) => s + i.total, 0) || workOrder.labor_estimate
-  const partsTotal = lineItems.filter(i => i.type === 'part').reduce((s, i) => s + i.total, 0)  || workOrder.parts_estimate
-  const subtotal   = laborTotal + partsTotal
-  const tax        = subtotal * TAX_RATE
-  const total      = subtotal + tax
-
-  function handlePay(m: 'cash' | 'card') {
-    setMethod(m); setPaid(true); onPaid(m)
-    setTimeout(() => onOpenChange(false), 1800)
-  }
+  const quote = quoteWorkOrder(workOrder, lineItems)
+  const lines = chargeLines(workOrder, lineItems)
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && !paid && onOpenChange(false)}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Collect Payment</DialogTitle></DialogHeader>
-        {paid ? (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <div className="flex size-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
-              <CheckCircle2 className="size-9 text-green-600 dark:text-green-400" />
-            </div>
-            <p className="text-lg font-semibold">Payment Received</p>
-            <p className="text-muted-foreground text-sm capitalize">{method} · ${total.toFixed(2)}</p>
+        <DialogHeader>
+          <DialogTitle>Collect Payment</DialogTitle>
+          <DialogDescription>Record a demo cash or card sale. Nothing is charged.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1.5">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {workOrder.work_order_number}
+            </p>
+            <PromisedPickup value={workOrder.estimated_completion} className="mb-2 text-xs text-muted-foreground" />
+            {lines.map(line => (
+              <div key={`${line.type}-${line.name}`} className="flex justify-between gap-2">
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {line.quantity !== 1 ? `${line.quantity}× ` : ''}{line.name}
+                </span>
+                <span className="shrink-0">${line.total.toFixed(2)}</span>
+              </div>
+            ))}
+            <Separator className="my-1.5" />
+            <div className="flex justify-between text-xs text-muted-foreground"><span>Subtotal</span><span>${quote.subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({(SERVICE_TAX_RATE * 100).toFixed(0)}%)</span><span>${quote.tax.toFixed(2)}</span></div>
+            <div className="flex justify-between font-bold text-base pt-1"><span>Total</span><span>${quote.total.toFixed(2)}</span></div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1.5">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {workOrder.work_order_number}
-              </p>
-              <PromisedPickup value={workOrder.estimated_completion} className="mb-2 text-xs text-muted-foreground" />
-              {lineItems.length > 0 ? lineItems.map(item => (
-                <div key={item.id} className="flex justify-between gap-2">
-                  <span className="min-w-0 truncate text-muted-foreground">
-                    {item.quantity !== 1 ? `${item.quantity}× ` : ''}{item.name}
-                  </span>
-                  <span className="shrink-0">${item.total.toFixed(2)}</span>
-                </div>
-              )) : (
-                <>
-                  {laborTotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Labor</span><span>${laborTotal.toFixed(2)}</span></div>}
-                  {partsTotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Parts</span><span>${partsTotal.toFixed(2)}</span></div>}
-                </>
-              )}
-              <Separator className="my-1.5" />
-              <div className="flex justify-between text-xs text-muted-foreground"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({(TAX_RATE * 100).toFixed(0)}%)</span><span>${tax.toFixed(2)}</span></div>
-              <div className="flex justify-between font-bold text-base pt-1"><span>Total</span><span>${total.toFixed(2)}</span></div>
-            </div>
-            <p className="text-center text-sm text-muted-foreground">Select payment method</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="h-16 flex-col gap-1.5 hover:bg-green-50 hover:border-green-400 dark:hover:bg-green-900/30" onClick={() => handlePay('cash')}>
-                <Banknote className="size-5" /><span className="text-sm font-medium">Cash</span>
-              </Button>
-              <Button variant="outline" className="h-16 flex-col gap-1.5 hover:bg-blue-50 hover:border-blue-400 dark:hover:bg-blue-900/30" onClick={() => handlePay('card')}>
-                <CreditCard className="size-5" /><span className="text-sm font-medium">Card</span>
-              </Button>
-            </div>
+          <p className="text-center text-sm text-muted-foreground">Select payment method. This demo does not capture a card or cash.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Button type="button" variant="outline" aria-label={`Record cash payment of $${quote.total.toFixed(2)}`} className="h-16 flex-col gap-1.5 hover:bg-green-50 hover:border-green-400 dark:hover:bg-green-900/30" onClick={() => onPaid('cash')}>
+              <Banknote className="size-5" /><span className="text-sm font-medium">Cash</span>
+            </Button>
+            <Button type="button" variant="outline" aria-label={`Record card payment of $${quote.total.toFixed(2)}`} className="h-16 flex-col gap-1.5 hover:bg-blue-50 hover:border-blue-400 dark:hover:bg-blue-900/30" onClick={() => onPaid('card')}>
+              <CreditCard className="size-5" /><span className="text-sm font-medium">Card</span>
+            </Button>
           </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -465,39 +453,36 @@ const emptyLineItemForm: AddLineItemForm = {
 }
 
 function WorkOrderDetailDialog({
-  workOrder, lineItems, customers, products, onClose, onStatusChange, onMarkReady,
-  onAddLineItem, onRemoveLineItem, onOpenPayment,
+  workOrder, lineItems, customers, products, receipt, onClose, onStatusChange,
+  onAddLineItem, onRemoveLineItem, onOpenPayment, onViewReceipt,
 }: {
   workOrder:        WorkOrder | null
   lineItems:        WOLineItem[]
   customers:        { id: string; first_name: string; last_name: string }[]
   products:         Product[]
+  receipt:          ServiceReceipt | null
   onClose:          () => void
-  onStatusChange:   (id: string, status: WorkOrderStatus) => void
-  onMarkReady:      (id: string) => void
-  onAddLineItem:    (woId: string, item: WOLineItem) => void
+  onStatusChange:   (id: string, status: WorkOrder['status']) => void
+  onAddLineItem:    (woId: string, item: WOLineItem) => string | null
   onRemoveLineItem: (woId: string, itemId: string) => void
   onOpenPayment:    () => void
+  onViewReceipt:    () => void
 }) {
   const [addForm,      setAddForm]      = useState<AddLineItemForm>(emptyLineItemForm)
   const [showAddForm,  setShowAddForm]  = useState(false)
+  const [lineError, setLineError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!workOrder) { setShowAddForm(false); setAddForm(emptyLineItemForm) }
+    if (!workOrder) { setShowAddForm(false); setAddForm(emptyLineItemForm); setLineError(null) }
   }, [workOrder])
 
   if (!workOrder) return null
 
-  const status     = workOrder.status as WorkOrderStatus
-  const nextStatus = STATUS_TRANSITIONS[status]
-
+  const status = workOrder.status
+  const actions = nextWorkOrderActions(status)
   const laborItems = lineItems.filter(i => i.type === 'labor')
   const partItems  = lineItems.filter(i => i.type === 'part')
-  const laborTotal = laborItems.reduce((s, i) => s + i.total, 0) || workOrder.labor_estimate
-  const partsTotal = partItems.reduce((s, i) => s + i.total, 0)  || workOrder.parts_estimate
-  const subtotal   = laborTotal + partsTotal
-  const tax        = subtotal * TAX_RATE
-  const total      = subtotal + tax
+  const quote = quoteWorkOrder(workOrder, lineItems)
 
   function handleProductSelect(p: Product) {
     setAddForm(f => ({
@@ -510,39 +495,54 @@ function WorkOrderDetailDialog({
 
   function handleTypeChange(newType: 'labor' | 'part') {
     // Reset selection when switching type — products are incompatible
+    setLineError(null)
     setAddForm({ ...emptyLineItemForm, type: newType })
   }
 
   function handleAddItem(e: React.FormEvent) {
     e.preventDefault()
-    const qty   = parseFloat(addForm.quantity)   || 1
-    const price = parseFloat(addForm.unit_price) || 0
-    if (!addForm.product_id || !addForm.name || price <= 0) return
-
-    // Warn if part is out of stock (soft warning — still allows adding for now)
-    const product = products.find(p => p.id === addForm.product_id)
-    const stock   = product ? getStock(product) : null
-    if (addForm.type === 'part' && stock === 0) {
-      // Could show a toast here — for now just allow it (backorder scenario)
+    const qty   = parseFloat(addForm.quantity)
+    const price = parseFloat(addForm.unit_price)
+    if (!addForm.product_id || !addForm.name) {
+      setLineError(addForm.type === 'labor' ? 'Choose a service.' : 'Choose a product from inventory.')
+      return
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setLineError('Enter a quantity greater than zero.')
+      return
+    }
+    if (addForm.type === 'part' && !Number.isInteger(qty)) {
+      setLineError('Parts use whole quantities.')
+      return
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      setLineError('Enter a price above zero.')
+      return
     }
 
     const item: WOLineItem = {
-      id:         `li-${Date.now()}`,
+      id:         `li-${crypto.randomUUID()}`,
       type:       addForm.type,
       product_id: addForm.product_id,
       name:       addForm.name,
       quantity:   qty,
       unit_price: price,
-      total:      Math.round(qty * price * 100) / 100,
+      total:      cents(qty * price),
     }
-    onAddLineItem(workOrder!.id, item)
+    const error = onAddLineItem(workOrder!.id, item)
+    if (error) {
+      setLineError(error)
+      return
+    }
+    setLineError(null)
     setAddForm(f => ({ ...emptyLineItemForm, type: f.type }))
     setShowAddForm(false)
   }
 
   // Stock badge for a selected product
   const selectedProduct  = addForm.product_id ? products.find(p => p.id === addForm.product_id) : null
-  const selectedStock    = selectedProduct ? getStock(selectedProduct) : null
+  const selectedStock    = selectedProduct ? availableStock(selectedProduct) : null
+  const partBlocked = addForm.type === 'part' && selectedStock === 0
 
   return (
     <Dialog open={!!workOrder} onOpenChange={v => !v && onClose()}>
@@ -554,6 +554,9 @@ function WorkOrderDetailDialog({
               {workOrder.priority.charAt(0).toUpperCase() + workOrder.priority.slice(1)}
             </Badge>
           </DialogTitle>
+          <DialogDescription>
+            {customerName(workOrder.customer_id, customers)}. Add parts from inventory, update the status, or collect payment when the bike is ready.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Stepper */}
@@ -569,7 +572,7 @@ function WorkOrderDetailDialog({
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Customer</p>
-              <p className="font-medium">{getCustomerName(workOrder.customer_id, customers)}</p>
+              <p className="font-medium">{customerName(workOrder.customer_id, customers)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Created</p>
@@ -598,9 +601,9 @@ function WorkOrderDetailDialog({
           <div>
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-semibold">Items &amp; Labor</p>
-              {status !== 'completed' && (
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
-                  onClick={() => setShowAddForm(v => !v)}>
+              {status !== 'completed' && status !== 'picked_up' && (
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs"
+                  onClick={() => { setLineError(null); setShowAddForm(v => !v) }}>
                   {showAddForm ? 'Cancel' : '+ Add Item'}
                 </Button>
               )}
@@ -612,9 +615,9 @@ function WorkOrderDetailDialog({
                 {/* Type selector */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Type</Label>
+                    <Label className="text-xs" htmlFor="wo-line-type">Type</Label>
                     <Select value={addForm.type} onValueChange={v => handleTypeChange(v as 'labor' | 'part')}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="wo-line-type" className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="labor">Labor / Service</SelectItem>
                         <SelectItem value="part">Part / Product</SelectItem>
@@ -624,8 +627,8 @@ function WorkOrderDetailDialog({
 
                   {/* Qty */}
                   <div className="space-y-1">
-                    <Label className="text-xs">Qty</Label>
-                    <Input className="h-8 text-xs" type="number" min="0.25" step="0.25"
+                    <Label className="text-xs" htmlFor="wo-line-qty">Qty</Label>
+                    <Input id="wo-line-qty" className="h-8 text-xs" type="number" min={addForm.type === 'part' ? '1' : '0.25'} step={addForm.type === 'part' ? '1' : '0.25'}
                       value={addForm.quantity}
                       onChange={e => setAddForm(f => ({ ...f, quantity: e.target.value }))} />
                   </div>
@@ -666,9 +669,9 @@ function WorkOrderDetailDialog({
                       <button
                         type="button"
                         className="shrink-0 text-[10px] text-muted-foreground underline hover:text-foreground"
-                        onClick={() => setAddForm(f => ({ ...f, product_id: null, name: '', unit_price: '' }))}
+                        onClick={() => { setLineError(null); setAddForm(f => ({ ...f, product_id: null, name: '', unit_price: '' })) }}
                       >
-                        change
+                        Change
                       </button>
                     </div>
                   )}
@@ -698,8 +701,12 @@ function WorkOrderDetailDialog({
                   </p>
                 )}
 
+                {lineError && <p role="alert" className="text-xs text-destructive">{lineError}</p>}
+                {partBlocked && !lineError && (
+                  <p role="alert" className="text-xs text-destructive">{addForm.name} is out of stock.</p>
+                )}
                 <Button type="submit" size="sm" className="h-7 w-full text-xs"
-                  disabled={!addForm.product_id || !addForm.unit_price}>
+                  disabled={!addForm.product_id || !addForm.unit_price || partBlocked}>
                   Add to Work Order
                 </Button>
               </form>
@@ -712,7 +719,7 @@ function WorkOrderDetailDialog({
                   <>
                     <p className="mt-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Labor</p>
                     {laborItems.map(item => (
-                      <LineItemRow key={item.id} item={item}
+                      <LineItemRow key={item.id} item={item} canRemove={status !== 'completed' && status !== 'picked_up'}
                         onRemove={() => onRemoveLineItem(workOrder.id, item.id)} />
                     ))}
                   </>
@@ -721,7 +728,7 @@ function WorkOrderDetailDialog({
                   <>
                     <p className="mt-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Parts</p>
                     {partItems.map(item => (
-                      <LineItemRow key={item.id} item={item}
+                      <LineItemRow key={item.id} item={item} canRemove={status !== 'completed' && status !== 'picked_up'}
                         onRemove={() => onRemoveLineItem(workOrder.id, item.id)} />
                     ))}
                   </>
@@ -736,34 +743,31 @@ function WorkOrderDetailDialog({
               </p>
             )}
 
-            {/* Totals */}
-            {subtotal > 0 && (
+            {quote.total > 0 && (
               <div className="mt-3 space-y-1 rounded-md bg-muted/40 p-2.5 text-sm">
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({(TAX_RATE * 100).toFixed(0)}%)</span><span>${tax.toFixed(2)}</span></div>
-                <div className="flex justify-between font-semibold"><span>Total</span><span>${total.toFixed(2)}</span></div>
+                {quote.usingLaborEstimate && quote.labor > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground"><span>Labor estimate</span><span>${quote.labor.toFixed(2)}</span></div>
+                )}
+                {quote.usingPartsEstimate && quote.parts > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground"><span>Parts estimate</span><span>${quote.parts.toFixed(2)}</span></div>
+                )}
+                <div className="flex justify-between text-xs text-muted-foreground"><span>Subtotal</span><span>${quote.subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({(SERVICE_TAX_RATE * 100).toFixed(0)}%)</span><span>${quote.tax.toFixed(2)}</span></div>
+                <div className="flex justify-between font-semibold"><span>Total</span><span>${quote.total.toFixed(2)}</span></div>
               </div>
             )}
           </div>
 
-          {/* Status actions */}
-          {status !== 'completed' && (
+          {actions.length > 0 && (
             <>
               <Separator />
               <div className="flex flex-wrap gap-2 pb-1">
-                {nextStatus && status !== 'ready' && (
-                  <Button size="sm" variant="outline"
-                    onClick={() => { onStatusChange(workOrder.id, nextStatus); onClose() }}>
-                    {STATUS_NEXT_LABEL[status]}
-                    <ChevronRight className="ml-1 size-3.5" />
+                {actions.map(action => (
+                  <Button key={action.status} type="button" size="sm" variant="outline"
+                    onClick={() => { onStatusChange(workOrder.id, action.status); onClose() }}>
+                    {action.label}
                   </Button>
-                )}
-                {status === 'in_progress' && (
-                  <Button size="sm" variant="outline"
-                    onClick={() => { onMarkReady(workOrder.id); onClose() }}>
-                    Mark Ready for Pickup
-                  </Button>
-                )}
+                ))}
               </div>
             </>
           )}
@@ -772,13 +776,18 @@ function WorkOrderDetailDialog({
         {/* Footer */}
         <div className="shrink-0 border-t pt-4">
           <div className="flex justify-between gap-2">
-            <Button variant="outline" onClick={onClose}>Close</Button>
-            {status === 'ready' && (
-              <Button className="bg-green-600 text-white hover:bg-green-700" onClick={onOpenPayment}>
-                <CreditCard className="mr-2 size-4" />
-                Collect Payment · ${total.toFixed(2)}
-              </Button>
-            )}
+            <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+            <div className="flex gap-2">
+              {receipt && (
+                <Button type="button" variant="outline" onClick={onViewReceipt}>View receipt</Button>
+              )}
+              {status === 'ready' && (
+                <Button type="button" className="bg-green-600 text-white hover:bg-green-700" onClick={onOpenPayment}>
+                  <CreditCard className="mr-2 size-4" />
+                  Collect Payment · ${quote.total.toFixed(2)}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -787,19 +796,22 @@ function WorkOrderDetailDialog({
 }
 
 // Small sub-component to keep the detail dialog readable
-function LineItemRow({ item, onRemove }: { item: WOLineItem; onRemove: () => void }) {
+function LineItemRow({ item, onRemove, canRemove }: { item: WOLineItem; onRemove: () => void; canRemove: boolean }) {
   return (
-    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/40">
+    <div className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/40">
       <span className="min-w-0 flex-1 truncate">
         {item.quantity !== 1 ? `${item.quantity}× ` : ''}{item.name}
       </span>
       <span className="shrink-0 text-xs text-muted-foreground">${item.unit_price.toFixed(2)}/ea</span>
       <span className="min-w-[48px] shrink-0 text-right font-medium">${item.total.toFixed(2)}</span>
-      <Button variant="ghost" size="icon"
-        className="size-6 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
-        onClick={onRemove}>
-        <Trash2 className="size-3" />
-      </Button>
+      {canRemove && (
+        <Button type="button" variant="ghost" size="icon"
+          className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+          aria-label={`Remove ${item.name}`}
+          onClick={onRemove}>
+          <Trash2 className="size-3" />
+        </Button>
+      )}
     </div>
   )
 }
@@ -807,177 +819,255 @@ function LineItemRow({ item, onRemove }: { item: WOLineItem; onRemove: () => voi
 // ── Work order card (gradient glow on hover) ──────────────────────────────────
 
 function WorkOrderCard({
-  order, customers, onClick,
+  order, customers, items, onClick,
 }: {
   order: WorkOrder
   customers: { id: string; first_name: string; last_name: string }[]
+  items: WOLineItem[]
   onClick: () => void
 }) {
-  const total = (order.actual_labor || order.labor_estimate) + (order.actual_parts || order.parts_estimate)
+  const quote = quoteWorkOrder(order, items)
+  const name = customerName(order.customer_id, customers)
   return (
     <div className="group relative rounded-xl">
-      <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-r from-(--card-glow-from) via-(--card-glow-via) to-(--card-glow-to) opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-[--card-glow-opacity]" />
-      <Card className="relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg" onClick={onClick}>
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-base">{order.work_order_number}</CardTitle>
-            <Badge variant="outline" className={priorityColors[order.priority]}>
-              {order.priority.charAt(0).toUpperCase() + order.priority.slice(1)}
-            </Badge>
-          </div>
-          <Badge variant="outline" className={`w-fit ${statusColors[order.status]}`}>
-            {formatStatus(order.status)}
+      <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-r from-(--card-glow-from) via-(--card-glow-via) to-(--card-glow-to) opacity-0 blur-md transition-opacity duration-300 motion-reduce:transition-none group-hover:opacity-[--card-glow-opacity]" />
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`Open ${order.work_order_number}, ${name}, ${formatWorkOrderStatus(order.status)}`}
+        className="relative flex w-full flex-col gap-3 rounded-xl border bg-card px-6 py-6 text-left text-card-foreground shadow-sm transition-all duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:-translate-y-0.5 group-hover:shadow-lg"
+      >
+        <span className="flex items-start justify-between gap-2">
+          <span className="text-base font-semibold">{order.work_order_number}</span>
+          <Badge variant="outline" className={priorityColors[order.priority]}>
+            {order.priority.charAt(0).toUpperCase() + order.priority.slice(1)}
           </Badge>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Separator />
-          <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <User className="size-3.5 shrink-0" />
-              <span className="truncate">{getCustomerName(order.customer_id, customers)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="size-3.5 shrink-0" />
-              <span>Created {new Date(order.created_at).toLocaleDateString()}</span>
-            </div>
-            <PromisedPickup value={order.estimated_completion} />
-          </div>
-          {order.intake_notes && (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{order.intake_notes}</p>
-          )}
-          {total > 0 && <p className="text-sm font-medium">${total.toFixed(2)}</p>}
-        </CardContent>
-      </Card>
+        </span>
+        <Badge variant="outline" className={`w-fit ${statusColors[order.status]}`}>
+          {formatWorkOrderStatus(order.status)}
+        </Badge>
+        <span className="h-px w-full bg-border" />
+        <span className="flex flex-col gap-1.5 text-sm text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <User className="size-3.5 shrink-0" />
+            <span className="truncate">{name}</span>
+          </span>
+          <span className="flex items-center gap-2">
+            <Clock className="size-3.5 shrink-0" />
+            <span>Created {new Date(order.created_at).toLocaleDateString()}</span>
+          </span>
+          <PromisedPickup value={order.estimated_completion} />
+        </span>
+        {order.intake_notes && (
+          <span className="line-clamp-2 text-xs text-muted-foreground">{order.intake_notes}</span>
+        )}
+        {quote.total > 0 && <span className="text-sm font-medium text-foreground">${quote.total.toFixed(2)}</span>}
+      </button>
     </div>
   )
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+function EmptyWorkOrders({ searching, onCreate }: { searching: boolean; onCreate: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
+      <Wrench className="mb-4 size-12 text-muted-foreground" />
+      <h2 className="mb-1 text-lg font-semibold">No work orders</h2>
+      <p className="mb-4 text-sm text-muted-foreground">
+        {searching ? 'Try a different search.' : 'Click "New Work Order" to create one.'}
+      </p>
+      {!searching && (
+        <Button type="button" onClick={onCreate}>
+          <Plus className="mr-2 size-4" /> New Work Order
+        </Button>
+      )}
+    </div>
+  )
+}
+
 export default function WorkOrdersPage() {
-  const { customers, products, workOrders, setWorkOrders } = useDemoStore()
+  const {
+    customers, products, workOrders, setWorkOrders, setProducts, setCustomers, setTransactions,
+  } = useDemoStore()
   const [lineItems, setLineItems] = usePersistentState<Record<string, WOLineItem[]>>('bikesuite_work_order_items', {})
+  const [receipts, setReceipts] = usePersistentState<ServiceReceipt[]>(RECEIPTS_STORAGE_KEY, [])
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab,   setActiveTab]   = useState('all')
+  const [layout, setLayout] = useState<'board' | 'cards'>('board')
+  const [activeTab, setActiveTab] = useState('all')
   const [newDialogOpen, setNewDialogOpen] = useState(false)
-  const [detailOrder,   setDetailOrder]   = useState<WorkOrder | null>(null)
-  const [paymentOpen,   setPaymentOpen]   = useState(false)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [activeReceipt, setActiveReceipt] = useState<ServiceReceipt | null>(null)
+  const [receiptTitle, setReceiptTitle] = useState('Receipt')
+
+  const detailOrder = detailId ? workOrders.find(order => order.id === detailId) ?? null : null
 
   function handleCreate(wo: WorkOrder) { setWorkOrders(prev => [wo, ...prev]) }
 
-  function handleStatusChange(id: string, status: WorkOrderStatus) {
+  function handleStatusChange(id: string, status: WorkOrder['status']) {
     setWorkOrders(prev => prev.map(wo => wo.id === id ? { ...wo, status, updated_at: new Date().toISOString() } : wo))
   }
 
-  function handleMarkReady(id: string) {
-    setWorkOrders(prev => prev.map(wo => wo.id === id ? { ...wo, status: 'ready', updated_at: new Date().toISOString() } : wo))
-  }
-
   function handleAddLineItem(woId: string, item: WOLineItem) {
+    if (item.type === 'part') {
+      const reserved = reservePart(products, item.product_id, item.quantity, new Date().toISOString())
+      if ('error' in reserved) return reserved.error
+      setProducts(reserved.products)
+    }
     setLineItems(prev => ({ ...prev, [woId]: [...(prev[woId] ?? []), item] }))
+    return null
   }
 
   function handleRemoveLineItem(woId: string, itemId: string) {
-    setLineItems(prev => ({ ...prev, [woId]: (prev[woId] ?? []).filter(i => i.id !== itemId) }))
+    const item = (lineItems[woId] ?? []).find(entry => entry.id === itemId)
+    if (!item) return
+    if (item.type === 'part') {
+      const restored = restorePart(products, item.product_id, item.quantity, new Date().toISOString())
+      setProducts(restored.products)
+      if (restored.warning) toast.error(restored.warning)
+    }
+    setLineItems(prev => ({ ...prev, [woId]: (prev[woId] ?? []).filter(entry => entry.id !== itemId) }))
+  }
+
+  function showReceipt(receipt: ServiceReceipt, title: string) {
+    setReceiptTitle(title)
+    setActiveReceipt(receipt)
+    setPaymentOpen(false)
+    setDetailId(null)
   }
 
   function handlePayment(method: 'cash' | 'card') {
-    if (!detailOrder) return
-    const items      = lineItems[detailOrder.id] ?? []
-    const laborTotal = items.filter(i => i.type === 'labor').reduce((s, i) => s + i.total, 0) || detailOrder.labor_estimate
-    const partsTotal = items.filter(i => i.type === 'part').reduce((s, i) => s + i.total, 0)  || detailOrder.parts_estimate
-    const now        = new Date().toISOString()
-    setWorkOrders(prev => prev.map(wo =>
-      wo.id === detailOrder.id
-        ? { ...wo, status: 'completed', actual_labor: laborTotal, actual_parts: partsTotal, completed_at: now, updated_at: now }
-        : wo
-    ))
-    setTimeout(() => { setPaymentOpen(false); setDetailOrder(null) }, 2000)
+    if (!detailOrder || hasReceipt(receipts, detailOrder.id)) return
+    const settled = settleWorkOrder({
+      order: detailOrder,
+      items: lineItems[detailOrder.id] ?? [],
+      method,
+      customers,
+    })
+    setWorkOrders(prev => prev.map(order => order.id === detailOrder.id ? settled.order : order))
+    setTransactions(prev => [settled.transaction, ...prev])
+    setCustomers(settled.customers)
+    setReceipts(prev => [settled.receipt, ...prev])
+    setPaymentOpen(false)
+    showReceipt(settled.receipt, 'Payment recorded')
   }
 
   const filteredOrders = workOrders.filter(order => {
-    const matchesTab    = activeTab === 'all' || order.status === activeTab
-    const q             = searchQuery.toLowerCase()
-    const matchesSearch = !q || order.work_order_number.toLowerCase().includes(q) ||
-      order.intake_notes?.toLowerCase().includes(q) || getCustomerName(order.customer_id, customers).toLowerCase().includes(q)
-    return matchesTab && matchesSearch
+    const matchesTab = layout === 'board' || activeTab === 'all' || order.status === activeTab
+    return matchesTab && matchesWorkOrderQuery(order, customers, searchQuery)
   })
-
   const currentLineItems = detailOrder ? (lineItems[detailOrder.id] ?? []) : []
+  const currentReceipt = detailOrder ? receipts.find(receipt => receipt.workOrderId === detailOrder.id) ?? null : null
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Work Orders</h1>
-          <p className="text-muted-foreground text-sm">Track and manage bike repairs and service</p>
+          <p className="text-muted-foreground text-sm">Track repairs from intake through pickup</p>
         </div>
-        <Button onClick={() => setNewDialogOpen(true)}>
-          <Plus className="mr-2 size-4" /> New Work Order
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Work order layout" className="flex rounded-md border p-0.5">
+            <Button type="button" size="sm" variant={layout === 'board' ? 'default' : 'ghost'} aria-pressed={layout === 'board'} onClick={() => setLayout('board')}>Board</Button>
+            <Button type="button" size="sm" variant={layout === 'cards' ? 'default' : 'ghost'} aria-pressed={layout === 'cards'} onClick={() => setLayout('cards')}>Cards</Button>
+          </div>
+          <Button type="button" onClick={() => setNewDialogOpen(true)}>
+            <Plus className="mr-2 size-4" /> New Work Order
+          </Button>
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative max-w-sm">
+        <Label htmlFor="work-order-search" className="sr-only">Search work orders</Label>
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input id="work-order-search" placeholder="Search work orders…" value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
+      </div>
+
+      {layout === 'board' ? (
+        filteredOrders.length > 0 ? (
+          <WorkOrderBoard
+            orders={filteredOrders}
+            customers={customers}
+            lineItems={lineItems}
+            onOpen={order => setDetailId(order.id)}
+            onStatusChange={handleStatusChange}
+          />
+        ) : (
+          <EmptyWorkOrders searching={searchQuery.trim().length > 0} onCreate={() => setNewDialogOpen(true)} />
+        )
+      ) : (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="h-auto flex-wrap gap-1">
-            {STATUS_OPTIONS.map(o => (
-              <TabsTrigger key={o.value} value={o.value}>
-                {o.label}
-                {o.value !== 'all' && (
+            {STATUS_OPTIONS.map(option => (
+              <TabsTrigger key={option.value} value={option.value}>
+                {option.label}
+                {option.value !== 'all' && (
                   <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                    {workOrders.filter(w => w.status === o.value).length}
+                    {workOrders.filter(order => order.status === option.value).length}
                   </span>
                 )}
               </TabsTrigger>
             ))}
           </TabsList>
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search work orders…" value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
-          </div>
-        </div>
-
-        {STATUS_OPTIONS.map(o => (
-          <TabsContent key={o.value} value={o.value}>
-            {filteredOrders.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredOrders.map(order => (
-                  <WorkOrderCard key={order.id} order={order} customers={customers} onClick={() => setDetailOrder(order)} />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
-                <Wrench className="mb-4 size-12 text-muted-foreground" />
-                <h3 className="mb-1 text-lg font-semibold">No work orders</h3>
-                <p className="mb-4 text-sm text-muted-foreground">
-                  {searchQuery ? 'Try a different search.' : 'Click "New Work Order" to create one.'}
-                </p>
-                {!searchQuery && (
-                  <Button onClick={() => setNewDialogOpen(true)}>
-                    <Plus className="mr-2 size-4" /> New Work Order
-                  </Button>
-                )}
-              </div>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+          {STATUS_OPTIONS.map(option => (
+            <TabsContent key={option.value} value={option.value}>
+              {filteredOrders.length > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredOrders.map(order => (
+                    <WorkOrderCard
+                      key={order.id}
+                      order={order}
+                      customers={customers}
+                      items={lineItems[order.id] ?? []}
+                      onClick={() => setDetailId(order.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyWorkOrders searching={searchQuery.trim().length > 0} onCreate={() => setNewDialogOpen(true)} />
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
 
       <NewWorkOrderDialog open={newDialogOpen} onOpenChange={setNewDialogOpen} onSave={handleCreate} customers={customers} />
       <WorkOrderDetailDialog
-        workOrder={detailOrder} lineItems={currentLineItems}
-        customers={customers} products={products}
-        onClose={() => setDetailOrder(null)}
-        onStatusChange={handleStatusChange} onMarkReady={handleMarkReady}
-        onAddLineItem={handleAddLineItem} onRemoveLineItem={handleRemoveLineItem}
+        workOrder={detailOrder}
+        lineItems={currentLineItems}
+        customers={customers}
+        products={products}
+        receipt={currentReceipt}
+        onClose={() => setDetailId(null)}
+        onStatusChange={handleStatusChange}
+        onAddLineItem={handleAddLineItem}
+        onRemoveLineItem={handleRemoveLineItem}
         onOpenPayment={() => setPaymentOpen(true)}
+        onViewReceipt={() => currentReceipt && showReceipt(currentReceipt, 'Receipt')}
       />
       <WorkOrderPaymentDialog
-        open={paymentOpen} onOpenChange={setPaymentOpen}
-        workOrder={detailOrder} lineItems={currentLineItems}
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        workOrder={detailOrder}
+        lineItems={currentLineItems}
         onPaid={handlePayment}
       />
+      <Dialog open={!!activeReceipt} onOpenChange={open => { if (!open) setActiveReceipt(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{receiptTitle}</DialogTitle>
+            <DialogDescription>Demo receipt for this work order. Printing uses the browser print dialog.</DialogDescription>
+          </DialogHeader>
+          {activeReceipt && (
+            <ServiceReceiptView
+              receipt={activeReceipt}
+              onDone={() => setActiveReceipt(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

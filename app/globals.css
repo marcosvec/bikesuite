@@ -178,3 +178,20 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #service-receipt,
+  #service-receipt * {
+    visibility: visible;
+  }
+  #service-receipt {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: white;
+    color: black;
+  }
+}
