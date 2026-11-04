@@ -124,14 +124,15 @@ function getStock(p: Product): number | null {
 
 function ProductSearchInput({
   type,
+  products,
   selectedName,
   onSelect,
 }: {
   type:         'labor' | 'part'
+  products:     Product[]
   selectedName: string
   onSelect:     (p: Product) => void
 }) {
-  const { products } = useDemoStore()
   const [query, setQuery] = useState(selectedName)
   const [open,  setOpen]  = useState(false)
   // Ref so PopoverContent can tell if a pointer event came from the Input
@@ -280,11 +281,11 @@ const emptyWOForm: NewWOForm = {
 
 // ── New Work Order dialog ────────────────────────────────────────────────────
 function NewWorkOrderDialog({
-  open, onOpenChange, onSave,
+  open, onOpenChange, onSave, customers,
 }: {
   open: boolean; onOpenChange: (v: boolean) => void; onSave: (wo: WorkOrder) => void
+  customers: { id: string; first_name: string; last_name: string }[]
 }) {
-  const { customers } = useDemoStore()
   const [form, setForm] = useState<NewWOForm>(emptyWOForm)
   useEffect(() => { if (open) setForm(emptyWOForm) }, [open])
 
@@ -464,11 +465,13 @@ const emptyLineItemForm: AddLineItemForm = {
 }
 
 function WorkOrderDetailDialog({
-  workOrder, lineItems, onClose, onStatusChange, onMarkReady,
+  workOrder, lineItems, customers, products, onClose, onStatusChange, onMarkReady,
   onAddLineItem, onRemoveLineItem, onOpenPayment,
 }: {
   workOrder:        WorkOrder | null
   lineItems:        WOLineItem[]
+  customers:        { id: string; first_name: string; last_name: string }[]
+  products:         Product[]
   onClose:          () => void
   onStatusChange:   (id: string, status: WorkOrderStatus) => void
   onMarkReady:      (id: string) => void
@@ -476,7 +479,6 @@ function WorkOrderDetailDialog({
   onRemoveLineItem: (woId: string, itemId: string) => void
   onOpenPayment:    () => void
 }) {
-  const { customers, products } = useDemoStore()
   const [addForm,      setAddForm]      = useState<AddLineItemForm>(emptyLineItemForm)
   const [showAddForm,  setShowAddForm]  = useState(false)
 
@@ -643,6 +645,7 @@ function WorkOrderDetailDialog({
                     <ProductSearchInput
                       key={addForm.type}
                       type={addForm.type}
+                      products={products}
                       selectedName={addForm.name}
                       onSelect={handleProductSelect}
                     />
@@ -803,8 +806,13 @@ function LineItemRow({ item, onRemove }: { item: WOLineItem; onRemove: () => voi
 
 // ── Work order card (gradient glow on hover) ──────────────────────────────────
 
-function WorkOrderCard({ order, onClick }: { order: WorkOrder; onClick: () => void }) {
-  const { customers } = useDemoStore()
+function WorkOrderCard({
+  order, customers, onClick,
+}: {
+  order: WorkOrder
+  customers: { id: string; first_name: string; last_name: string }[]
+  onClick: () => void
+}) {
   const total = (order.actual_labor || order.labor_estimate) + (order.actual_parts || order.parts_estimate)
   return (
     <div className="group relative rounded-xl">
@@ -935,7 +943,7 @@ export default function WorkOrdersPage() {
             {filteredOrders.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredOrders.map(order => (
-                  <WorkOrderCard key={order.id} order={order} onClick={() => setDetailOrder(order)} />
+                  <WorkOrderCard key={order.id} order={order} customers={customers} onClick={() => setDetailOrder(order)} />
                 ))}
               </div>
             ) : (
@@ -956,9 +964,10 @@ export default function WorkOrdersPage() {
         ))}
       </Tabs>
 
-      <NewWorkOrderDialog open={newDialogOpen} onOpenChange={setNewDialogOpen} onSave={handleCreate} />
+      <NewWorkOrderDialog open={newDialogOpen} onOpenChange={setNewDialogOpen} onSave={handleCreate} customers={customers} />
       <WorkOrderDetailDialog
         workOrder={detailOrder} lineItems={currentLineItems}
+        customers={customers} products={products}
         onClose={() => setDetailOrder(null)}
         onStatusChange={handleStatusChange} onMarkReady={handleMarkReady}
         onAddLineItem={handleAddLineItem} onRemoveLineItem={handleRemoveLineItem}
