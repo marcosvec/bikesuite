@@ -10,6 +10,7 @@ import {
   quoteWorkOrder,
   type WOLineItem,
 } from '@/lib/demo/work-order-service'
+import { useShopTaxRate } from '@/lib/demo/use-shop-tax-rate'
 import type { WorkOrder } from '@/lib/types/database'
 
 const priorityColors: Record<string, string> = {
@@ -32,12 +33,21 @@ export function WorkOrderBoard({
   onOpen: (order: WorkOrder) => void
   onStatusChange: (id: string, status: WorkOrder['status']) => void
 }) {
+  const taxRate = useShopTaxRate()
   return (
+    <div className="flex flex-col gap-3">
+      <nav className="flex gap-2 overflow-x-auto md:hidden" aria-label="Jump to a status">
+        {BOARD_COLUMNS.map(column => (
+          <a key={column.id} href={`#wo-col-${column.id}`} className="shrink-0 rounded-full border px-3 py-2 text-xs font-medium">
+            {column.label}
+          </a>
+        ))}
+      </nav>
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {BOARD_COLUMNS.map(column => {
         const columnOrders = orders.filter(order => (column.statuses as readonly string[]).includes(order.status))
         return (
-          <section key={column.id} aria-labelledby={`wo-col-${column.id}`} className="flex min-w-0 flex-col gap-2">
+          <section key={column.id} aria-labelledby={`wo-col-${column.id}`} className="flex min-w-0 scroll-mt-3 flex-col gap-2">
             <h2 id={`wo-col-${column.id}`} className="flex items-center justify-between text-sm font-semibold">
               {column.label}
               <span className="sr-only">, {columnOrders.length}</span>
@@ -49,7 +59,7 @@ export function WorkOrderBoard({
               )}
               {columnOrders.map(order => {
                 const name = customerName(order.customer_id, customers)
-                const quote = quoteWorkOrder(order, lineItems[order.id] ?? [])
+                const quote = quoteWorkOrder(order, lineItems[order.id] ?? [], taxRate)
                 const actions = nextWorkOrderActions(order.status)
                 return (
                   <li key={order.id}>
@@ -83,7 +93,7 @@ export function WorkOrderBoard({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="h-auto whitespace-normal py-1 text-xs"
+                                className="h-auto min-h-11 whitespace-normal py-2 text-sm sm:min-h-0 sm:py-1 sm:text-xs"
                                 aria-label={`${action.label} for ${order.work_order_number}`}
                                 onClick={() => onStatusChange(order.id, action.status)}
                               >
@@ -101,6 +111,7 @@ export function WorkOrderBoard({
           </section>
         )
       })}
+    </div>
     </div>
   )
 }

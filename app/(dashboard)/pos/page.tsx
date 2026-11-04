@@ -1,6 +1,6 @@
 'use client'
 
-import { useReducer, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
   User, CreditCard, Banknote, CheckCircle2, X,
@@ -16,8 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import type { CartItem, Customer, Product, Transaction } from '@/lib/types/database'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
-
-const TAX_RATE  = 0.08
+import { DEFAULT_TAX_RATE, formatTaxPercent, saleTax } from '@/lib/demo/shop-settings'
+import { useShopTaxRate } from '@/lib/demo/use-shop-tax-rate'
 const CATEGORIES = ['All', 'Bicycles', 'Components', 'Accessories', 'Service']
 
 // ── Cart reducer ──────────────────────────────────────────────────────────────
@@ -25,6 +25,7 @@ const CATEGORIES = ['All', 'Bicycles', 'Components', 'Accessories', 'Service']
 type CartState = {
   items:      CartItem[]
   customerId: string | null
+  taxRate:    number
   subtotal:   number
   taxAmount:  number
   discount:   number
@@ -37,11 +38,12 @@ type CartAction =
   | { type: 'INC';          id: string }
   | { type: 'DEC';          id: string }
   | { type: 'SET_CUSTOMER'; customerId: string | null }
+  | { type: 'SET_TAX'; taxRate: number }
   | { type: 'CLEAR' }
 
-function recalc(items: CartItem[]): Pick<CartState, 'subtotal' | 'taxAmount' | 'total'> {
+function recalc(items: CartItem[], taxRate: number): Pick<CartState, 'subtotal' | 'taxAmount' | 'total'> {
   const subtotal  = items.reduce((s, i) => s + i.total, 0)
-  const taxAmount = subtotal * TAX_RATE
+  const taxAmount = saleTax(subtotal, taxRate)
   return { subtotal, taxAmount, total: subtotal + taxAmount }
 }
 
@@ -68,11 +70,11 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           total:     action.product.base_price,
         }]
       }
-      return { ...state, items, ...recalc(items) }
+      return { ...state, items, ...recalc(items, state.taxRate) }
     }
     case 'REMOVE': {
       const items = state.items.filter(i => i.id !== action.id)
-      return { ...state, items, ...recalc(items) }
+      return { ...state, items, ...recalc(items, state.taxRate) }
     }
     case 'INC': {
       const items = state.items.map(i =>
@@ -80,7 +82,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           ? { ...i, quantity: i.quantity + 1, total: i.unitPrice * (i.quantity + 1) }
           : i
       )
-      return { ...state, items, ...recalc(items) }
+      return { ...state, items, ...recalc(items, state.taxRate) }
     }
     case 'DEC': {
       const items = state.items
@@ -90,19 +92,21 @@ function cartReducer(state: CartState, action: CartAction): CartState {
             : i
         )
         .filter(i => i.quantity > 0)
-      return { ...state, items, ...recalc(items) }
+      return { ...state, items, ...recalc(items, state.taxRate) }
     }
     case 'SET_CUSTOMER':
       return { ...state, customerId: action.customerId }
+    case 'SET_TAX':
+      return { ...state, taxRate: action.taxRate, ...recalc(state.items, action.taxRate) }
     case 'CLEAR':
-      return { items: [], customerId: null, subtotal: 0, taxAmount: 0, discount: 0, total: 0 }
+      return { items: [], customerId: null, taxRate: state.taxRate, subtotal: 0, taxAmount: 0, discount: 0, total: 0 }
     default:
       return state
   }
 }
 
 const initialCart: CartState = {
-  items: [], customerId: null, subtotal: 0, taxAmount: 0, discount: 0, total: 0,
+  items: [], customerId: null, taxRate: DEFAULT_TAX_RATE, subtotal: 0, taxAmount: 0, discount: 0, total: 0,
 }
 
 // ── Customer picker dialog ────────────────────────────────────────────────────
@@ -337,7 +341,9 @@ export default function POSPage() {
     setCustomers,
     setTransactions,
   } = useDemoStore()
+  const taxRate = useShopTaxRate()
   const [cart,               dispatch]              = useReducer(cartReducer, initialCart)
+  useEffect(() => { dispatch({ type: 'SET_TAX', taxRate }) }, [taxRate])
   const [searchQuery,        setSearchQuery]         = useState('')
   const [activeCategory,     setActiveCategory]      = useState('All')
   const [customerDialogOpen, setCustomerDialogOpen]  = useState(false)
@@ -517,7 +523,7 @@ export default function POSPage() {
             <span>${cart.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Tax ({(TAX_RATE * 100).toFixed(0)}%)</span>
+            <span className="text-muted-foreground">Tax ({formatTaxPercent(cart.taxRate)}%)</span>
             <span>${cart.taxAmount.toFixed(2)}</span>
           </div>
           <Separator className="my-1" />
@@ -571,7 +577,7 @@ export default function POSPage() {
             type: 'sale',
             status: 'completed',
             subtotal: cart.subtotal,
-            tax_rate: TAX_RATE,
+            tax_rate: cart.taxRate,
             tax_amount: cart.taxAmount,
             discount_amount: cart.discount,
             total: cart.total,

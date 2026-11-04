@@ -9,9 +9,11 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { Check, Palette, Settings, Save, Wrench, RotateCcw } from 'lucide-react'
+import { Check, Palette, Settings, Save, Wrench } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
-import { DEMO_RESET_KEYS, SETTINGS_STORAGE_KEY } from '@/lib/demo/storage-keys'
+import { SETTINGS_STORAGE_KEY } from '@/lib/demo/storage-keys'
+import { notifyShopSettingsChanged, parseTaxPercent } from '@/lib/demo/shop-settings'
+import { ResetDemoButton } from '@/components/dashboard/reset-demo-button'
 
 const sections = [
   { id: 'appearance',   label: 'Appearance',   icon: Palette  },
@@ -154,6 +156,7 @@ function loadSettings(): ShopSettings {
 function GeneralSection() {
   const [settings, setSettings] = useState<ShopSettings>(defaultSettings)
   const [saved, setSaved] = useState(false)
+  const [taxError, setTaxError] = useState<string | null>(null)
 
   useEffect(() => {
     setSettings(loadSettings())
@@ -165,7 +168,17 @@ function GeneralSection() {
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    const percent = parseTaxPercent(settings.taxRate)
+    if (percent === null) {
+      setTaxError('Enter a tax rate from 0 to 100 percent.')
+      setSaved(false)
+      return
+    }
+    const next = { ...loadSettings(), ...settings, taxRate: String(percent) }
+    setSettings(next)
+    setTaxError(null)
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+    notifyShopSettingsChanged()
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -241,7 +254,7 @@ function GeneralSection() {
       <Card>
         <CardHeader>
           <CardTitle>Tax &amp; Currency</CardTitle>
-          <CardDescription>Configure your default tax rate for sales.</CardDescription>
+          <CardDescription>One rate for the counter, work orders, and new receipts.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -254,11 +267,14 @@ function GeneralSection() {
                 max="100"
                 step="0.01"
                 value={settings.taxRate}
-                onChange={e => set('taxRate', e.target.value)}
+                onChange={e => { setTaxError(null); set('taxRate', e.target.value) }}
+                aria-invalid={taxError ? true : undefined}
+                aria-describedby={taxError ? 'tax-rate-error' : undefined}
               />
               <p className="text-muted-foreground text-xs">
-                Applied to all sales in the POS.
+                Saved sales keep the rate they were recorded with. New sales use this rate.
               </p>
+              {taxError && <p id="tax-rate-error" role="alert" className="text-xs text-destructive">{taxError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="currency">Currency</Label>
@@ -299,6 +315,7 @@ function WorkOrdersSection() {
     const next = { ...settings, [field]: value }
     setSettings(next)
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+    notifyShopSettingsChanged()
     setFlash(true)
     setTimeout(() => setFlash(false), 1800)
   }
@@ -352,21 +369,12 @@ function WorkOrdersSection() {
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState('appearance')
 
-  function resetDemo() {
-    for (const key of DEMO_RESET_KEYS) {
-      window.localStorage.removeItem(key)
-    }
-    window.sessionStorage.removeItem('bikesuite_workspace_unlocked')
-    window.sessionStorage.removeItem('bikesuite_last_activity')
-    window.location.reload()
-  }
-
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <h1 className="text-3xl font-bold">Settings</h1>
-      <div className="flex gap-6">
-        <aside className="w-44 shrink-0">
-          <nav className="flex flex-col gap-1">
+      <div className="flex flex-col gap-6 md:flex-row">
+        <aside className="w-full shrink-0 md:w-44">
+          <nav className="flex gap-1 overflow-x-auto md:flex-col">
             {sections.map((s) => {
               const Icon = s.icon
               const isActive = activeSection === s.id
@@ -403,10 +411,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={resetDemo}>
-            <RotateCcw className="mr-2 size-4" />
-            Reset demo data
-          </Button>
+          <ResetDemoButton />
         </CardContent>
       </Card>
     </div>

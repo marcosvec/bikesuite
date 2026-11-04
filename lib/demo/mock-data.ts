@@ -1,7 +1,7 @@
 // Mock data for public demo
 // Safe for public deployment - contains no real business data
 
-import type { Product, Customer, Transaction, WorkOrder, Category, Brand } from '@/lib/types/database'
+import type { Product, Customer, CustomerBike, Transaction, WorkOrder, Category, Brand } from '@/lib/types/database'
 
 // --- Categories ---
 
@@ -378,6 +378,44 @@ export const mockCustomers: Customer[] = [
   },
 ]
 
+// Seeded bikes. Work orders point at these ids. Tax on the sales below uses the shop default of 8%.
+
+export const mockBikes: CustomerBike[] = [
+  {
+    id: 'bike-001',
+    customer_id: 'cust-001',
+    brand: 'Trek',
+    model: 'FX 3',
+    year: 2019,
+    color: 'Blue',
+    serial_number: 'WTU2019FX3',
+    notes: 'Front brake rubs',
+    created_at: '2025-06-01T00:00:00Z',
+  },
+  {
+    id: 'bike-004',
+    customer_id: 'cust-004',
+    brand: 'Specialized',
+    model: 'Sirrus',
+    year: 2014,
+    color: 'Silver',
+    serial_number: 'SPC2014SIR',
+    notes: 'Sat in the garage',
+    created_at: '2025-06-01T00:00:00Z',
+  },
+  {
+    id: 'bike-005',
+    customer_id: 'cust-005',
+    brand: 'Surly',
+    model: 'Cross-Check',
+    year: 2016,
+    color: 'Green',
+    serial_number: 'SUR2016CC',
+    notes: 'Rear derailleur meets curbs',
+    created_at: '2025-06-01T00:00:00Z',
+  },
+]
+
 // --- Transactions ---
 
 export const mockTransactions: Transaction[] = [
@@ -391,10 +429,10 @@ export const mockTransactions: Transaction[] = [
     type: 'sale',
     status: 'completed',
     subtotal: 1299.99,
-    tax_rate: 0.0825,
-    tax_amount: 107.25,
+    tax_rate: 0.08,
+    tax_amount: 104.00,
     discount_amount: 0,
-    total: 1407.24,
+    total: 1403.99,
     notes: null,
     created_at: '2026-02-10T14:30:00Z',
     completed_at: '2026-02-10T14:35:00Z'
@@ -409,10 +447,10 @@ export const mockTransactions: Transaction[] = [
     type: 'sale',
     status: 'completed',
     subtotal: 164.99,
-    tax_rate: 0.0825,
-    tax_amount: 13.61,
+    tax_rate: 0.08,
+    tax_amount: 13.20,
     discount_amount: 0,
-    total: 178.60,
+    total: 178.19,
     notes: 'Customer requested gift receipt',
     created_at: '2026-02-11T10:20:00Z',
     completed_at: '2026-02-11T10:25:00Z'
@@ -427,10 +465,10 @@ export const mockTransactions: Transaction[] = [
     type: 'sale',
     status: 'completed',
     subtotal: 899.99,
-    tax_rate: 0.0825,
-    tax_amount: 74.25,
+    tax_rate: 0.08,
+    tax_amount: 72.00,
     discount_amount: 50.00,
-    total: 924.24,
+    total: 921.99,
     notes: 'Applied loyalty discount',
     created_at: '2026-02-12T16:00:00Z',
     completed_at: '2026-02-12T16:10:00Z'
@@ -445,10 +483,10 @@ export const mockTransactions: Transaction[] = [
     type: 'sale',
     status: 'completed',
     subtotal: 75.00,
-    tax_rate: 0.0825,
-    tax_amount: 6.19,
+    tax_rate: 0.08,
+    tax_amount: 6.00,
     discount_amount: 0,
-    total: 81.19,
+    total: 81.00,
     notes: 'Another tune-up for Suzie',
     created_at: '2026-02-15T09:30:00Z',
     completed_at: '2026-02-15T09:45:00Z'
@@ -529,10 +567,10 @@ export const mockWorkOrders: WorkOrder[] = [
 // --- Demo Statistics ---
 
 export const mockStats = {
-  todaysSales: 178.60,
+  todaysSales: 178.19,
   activeWorkOrders: 3,
   lowStockItems: 3,
   totalCustomers: 5,
-  weeklyRevenue: 2591.27,
+  weeklyRevenue: 2585.17,
   monthlyRevenue: 7234.89
 }

@@ -380,6 +380,10 @@ function CustomerFormDialog({
 export default function CustomersPage() {
   const [customers, setCustomers] = usePersistentState<Customer[]>('bikesuite_customers', mockCustomers)
   const [searchQuery, setSearchQuery] = useState('')
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search).get('q')
+    if (query) setSearchQuery(query)
+  }, [])
   const [formDialogOpen, setFormDialogOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null)

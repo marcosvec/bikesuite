@@ -48,13 +48,14 @@ import {
   matchesWorkOrderQuery,
   nextWorkOrderActions,
   quoteWorkOrder,
-  SERVICE_TAX_RATE,
   reservePart,
   restorePart,
   settleWorkOrder,
   type ServiceReceipt,
   type WOLineItem,
 } from '@/lib/demo/work-order-service'
+import { formatTaxPercent } from '@/lib/demo/shop-settings'
+import { useShopTaxRate } from '@/lib/demo/use-shop-tax-rate'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 
@@ -393,13 +394,14 @@ function WorkOrderPaymentDialog({
   workOrder: WorkOrder | null; lineItems: WOLineItem[]
   onPaid: (method: 'cash' | 'card') => void
 }) {
+  const taxRate = useShopTaxRate()
   if (!workOrder) return null
-  const quote = quoteWorkOrder(workOrder, lineItems)
-  const lines = chargeLines(workOrder, lineItems)
+  const quote = quoteWorkOrder(workOrder, lineItems, taxRate)
+  const lines = chargeLines(workOrder, lineItems, taxRate)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Collect Payment</DialogTitle>
           <DialogDescription>Record a demo cash or card sale. Nothing is charged.</DialogDescription>
@@ -420,7 +422,7 @@ function WorkOrderPaymentDialog({
             ))}
             <Separator className="my-1.5" />
             <div className="flex justify-between text-xs text-muted-foreground"><span>Subtotal</span><span>${quote.subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({(SERVICE_TAX_RATE * 100).toFixed(0)}%)</span><span>${quote.tax.toFixed(2)}</span></div>
+            <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({formatTaxPercent(taxRate)}%)</span><span>${quote.tax.toFixed(2)}</span></div>
             <div className="flex justify-between font-bold text-base pt-1"><span>Total</span><span>${quote.total.toFixed(2)}</span></div>
           </div>
           <p className="text-center text-sm text-muted-foreground">Select payment method. This demo does not capture a card or cash.</p>
@@ -476,13 +478,14 @@ function WorkOrderDetailDialog({
     if (!workOrder) { setShowAddForm(false); setAddForm(emptyLineItemForm); setLineError(null) }
   }, [workOrder])
 
+  const taxRate = useShopTaxRate()
   if (!workOrder) return null
 
   const status = workOrder.status
   const actions = nextWorkOrderActions(status)
   const laborItems = lineItems.filter(i => i.type === 'labor')
   const partItems  = lineItems.filter(i => i.type === 'part')
-  const quote = quoteWorkOrder(workOrder, lineItems)
+  const quote = quoteWorkOrder(workOrder, lineItems, taxRate)
 
   function handleProductSelect(p: Product) {
     setAddForm(f => ({
@@ -546,7 +549,7 @@ function WorkOrderDetailDialog({
 
   return (
     <Dialog open={!!workOrder} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-xl">
+      <DialogContent className="flex max-h-[90dvh] flex-col sm:max-w-xl">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-3">
             <span>{workOrder.work_order_number}</span>
@@ -752,7 +755,7 @@ function WorkOrderDetailDialog({
                   <div className="flex justify-between text-xs text-muted-foreground"><span>Parts estimate</span><span>${quote.parts.toFixed(2)}</span></div>
                 )}
                 <div className="flex justify-between text-xs text-muted-foreground"><span>Subtotal</span><span>${quote.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({(SERVICE_TAX_RATE * 100).toFixed(0)}%)</span><span>${quote.tax.toFixed(2)}</span></div>
+                <div className="flex justify-between text-xs text-muted-foreground"><span>Tax ({formatTaxPercent(taxRate)}%)</span><span>${quote.tax.toFixed(2)}</span></div>
                 <div className="flex justify-between font-semibold"><span>Total</span><span>${quote.total.toFixed(2)}</span></div>
               </div>
             )}
@@ -826,7 +829,8 @@ function WorkOrderCard({
   items: WOLineItem[]
   onClick: () => void
 }) {
-  const quote = quoteWorkOrder(order, items)
+  const taxRate = useShopTaxRate()
+  const quote = quoteWorkOrder(order, items, taxRate)
   const name = customerName(order.customer_id, customers)
   return (
     <div className="group relative rounded-xl">
@@ -900,6 +904,15 @@ export default function WorkOrdersPage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [activeReceipt, setActiveReceipt] = useState<ServiceReceipt | null>(null)
   const [receiptTitle, setReceiptTitle] = useState('Receipt')
+  const taxRate = useShopTaxRate()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const query = params.get('q')
+    const order = params.get('order')
+    if (query) setSearchQuery(query)
+    if (order) setDetailId(order)
+  }, [])
 
   const detailOrder = detailId ? workOrders.find(order => order.id === detailId) ?? null : null
 
@@ -944,6 +957,7 @@ export default function WorkOrdersPage() {
       items: lineItems[detailOrder.id] ?? [],
       method,
       customers,
+      taxRate,
     })
     setWorkOrders(prev => prev.map(order => order.id === detailOrder.id ? settled.order : order))
     setTransactions(prev => [settled.transaction, ...prev])
@@ -961,7 +975,7 @@ export default function WorkOrdersPage() {
   const currentReceipt = detailOrder ? receipts.find(receipt => receipt.workOrderId === detailOrder.id) ?? null : null
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-4 p-3 sm:gap-6 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Work Orders</h1>
