@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { WorkOrder, Product } from '@/lib/types/database'
+import { createWorkOrder } from '@/lib/demo/create-work-order'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 
@@ -292,32 +293,19 @@ function NewWorkOrderDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.bikeDescription.trim()) return
-
-    // Read "Assume Immediate Work" from localStorage settings
-    let assumeImmediate = false
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('bikesuite_settings') : null
-      if (raw) assumeImmediate = !!JSON.parse(raw).assumeImmediateWork
-    } catch { /* use default */ }
-
-    const now = new Date().toISOString()
-    const num = `WO-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`
-    const wo: WorkOrder = {
-      id: `wo-${Date.now()}`, organization_id: 'demo-org', location_id: 'loc-001',
-      customer_id: form.customerId === 'walk-in' ? null : form.customerId || null, customer_bike_id: null,
-      work_order_number: num,
-      status: assumeImmediate ? 'in_progress' : 'intake',
-      priority: form.priority,
-      intake_notes: [form.bikeDescription, form.intakeNotes].filter(Boolean).join(' — ') || null,
-      diagnosis_notes: null, internal_notes: null, estimated_completion: null,
-      labor_estimate: parseFloat(form.laborEstimate) || 0,
-      parts_estimate: parseFloat(form.partsEstimate) || 0,
-      actual_labor: 0, actual_parts: 0, completed_at: null,
-      created_at: now, updated_at: now, assigned_to: null,
+      onSave(createWorkOrder({
+        customerId: form.customerId,
+        bikeDescription: form.bikeDescription,
+        intakeNotes: form.intakeNotes,
+        priority: form.priority,
+        laborEstimate: form.laborEstimate,
+        partsEstimate: form.partsEstimate,
+      }))
+      onOpenChange(false)
+    } catch {
+      return
     }
-    onSave(wo)
-    onOpenChange(false)
   }
 
   return (

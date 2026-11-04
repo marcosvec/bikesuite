@@ -202,7 +202,7 @@ export function ProtectedWorkspace({ children }: { children: ReactNode }) {
   const blocked = locked || disablePending
   return <main className="relative min-h-0 flex-1 overflow-hidden">
     <div hidden={blocked} className="h-full overflow-y-auto">
-      {!locked && children}
+      {!blocked && children}
     </div>
     {blocked && <section className="h-full overflow-y-auto p-6 lg:p-10" aria-labelledby="workspace-password-title">
       <div className="mx-auto max-w-4xl space-y-8">

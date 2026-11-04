@@ -30,6 +30,12 @@ it('paginates the preview and imports only the chosen category', async () => {
   const saved = JSON.parse(localStorage.getItem('bikesuite_reference_catalog')!)
   expect(saved).toHaveLength(count); expect(saved.every((p: { category: string }) => p.category === 'Mountain Bikes')).toBe(true)
 })
+it('keeps a corrupt saved catalog visible instead of offering a silent overwrite', async () => {
+  localStorage.setItem('bikesuite_reference_catalog', '{}')
+  render(<CatalogImport />)
+  fireEvent.click(screen.getByRole('button', { name: 'Grab database' }))
+  expect((await screen.findByRole('alert')).textContent).toMatch(/Saved catalog is invalid/)
+})
 it('shows a fetch failure without an import button', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
   render(<CatalogImport />); fireEvent.click(screen.getByRole('button', { name: 'Grab database' }))

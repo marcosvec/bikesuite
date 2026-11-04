@@ -34,11 +34,12 @@ export function CatalogImport() {
   useEffect(() => {
     try {
       setSaved(readCatalog(localStorage.getItem(KEY)))
-    } catch { setError('Saved catalog could not be read. Import a snapshot to try again.') }
+    } catch (error) { setError(error instanceof Error ? error.message : 'Saved catalog could not be read.') }
   }, [])
   useEffect(() => {
-    setSnapshot(null); setError(''); setNotice(''); setProductType('all'); setCategory('all'); setQuery(''); setPage(0)
+    setSnapshot(null); setNotice(''); setProductType('all'); setCategory('all'); setQuery(''); setPage(0)
     if (!source || !open || viewSaved) return
+    setError('')
     const controller = new AbortController()
     setLoading(true)
     fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/catalogs/${source}.json`, { signal: controller.signal })

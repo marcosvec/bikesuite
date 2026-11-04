@@ -63,7 +63,7 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <DemoBanner show />
       <h1 className="text-3xl font-bold">Dashboard</h1>
 

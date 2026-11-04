@@ -33,6 +33,12 @@ describe('workspace session', () => {
     advance(300_000); render(<App />)
     expect(screen.queryByText('Financial dashboard')).toBeNull()
   })
+  it('removes open portals while confirming prompt disable', () => {
+    render(<App portal />); signIn()
+    fireEvent.click(screen.getByLabelText('Require sign-in'))
+    expect(screen.queryByText('Open sensitive dialog')).toBeNull()
+    expect(screen.queryByText('Financial dashboard')).toBeNull()
+  })
   it('locks at five minutes and removes portals', () => {
     render(<App portal />); signIn()
     advance(299_000); expect(screen.getByText('Open sensitive dialog')).toBeTruthy()

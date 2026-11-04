@@ -37,13 +37,16 @@ jobs:
         run: npm test
 
       - name: Collector tests
-        run: python -m unittest discover -s tests -p test_collectors.py
+        run: python3 -m unittest discover -s tests -p test_collectors.py
 
       - name: Type-check
         run: npx tsc --noEmit
 
       - name: Build static export
         run: npm run build
+
+      - name: Include custom domain
+        run: test -s out/CNAME || cp CNAME out/CNAME
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

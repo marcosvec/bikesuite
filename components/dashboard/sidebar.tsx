@@ -28,8 +28,14 @@ const navItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
+function currentPath(pathname: string) {
+  if (pathname === '/') return '/'
+  return pathname.replace(/\/+$/, '')
+}
+
 export function Sidebar() {
   const pathname = usePathname()
+  const path = currentPath(pathname)
   const { collapsed, toggleSidebar } = useNavigationPreferences()
 
   return (
@@ -64,7 +70,7 @@ export function Sidebar() {
       <ScrollArea className="flex-1 py-2">
         <nav className="flex flex-col gap-1 px-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = path === item.href
             return (
               <Link
                 key={item.href}
@@ -92,7 +98,7 @@ export function Sidebar() {
           aria-label="Settings"
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            pathname === '/settings'
+            path === '/settings'
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
             collapsed && 'justify-center'
