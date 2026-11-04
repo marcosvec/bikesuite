@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { WorkOrder, Product } from '@/lib/types/database'
+import { PromisedPickup } from '@/components/promised-pickup'
 import { createWorkOrder } from '@/lib/demo/create-work-order'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
@@ -413,6 +414,7 @@ function WorkOrderPaymentDialog({
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {workOrder.work_order_number}
               </p>
+              <PromisedPickup value={workOrder.estimated_completion} className="mb-2 text-xs text-muted-foreground" />
               {lineItems.length > 0 ? lineItems.map(item => (
                 <div key={item.id} className="flex justify-between gap-2">
                   <span className="min-w-0 truncate text-muted-foreground">
@@ -570,6 +572,9 @@ function WorkOrderDetailDialog({
             <div>
               <p className="text-xs text-muted-foreground">Created</p>
               <p>{new Date(workOrder.created_at).toLocaleDateString()}</p>
+            </div>
+            <div className="col-span-2">
+              <PromisedPickup value={workOrder.estimated_completion} showEmpty className="text-sm text-muted-foreground" />
             </div>
             {workOrder.intake_notes && (
               <div className="col-span-2">
@@ -827,6 +832,7 @@ function WorkOrderCard({ order, onClick }: { order: WorkOrder; onClick: () => vo
               <Clock className="size-3.5 shrink-0" />
               <span>Created {new Date(order.created_at).toLocaleDateString()}</span>
             </div>
+            <PromisedPickup value={order.estimated_completion} />
           </div>
           {order.intake_notes && (
             <p className="line-clamp-2 text-xs text-muted-foreground">{order.intake_notes}</p>

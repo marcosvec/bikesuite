@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { PromisedPickup } from '@/components/promised-pickup'
+import { createCustomer } from '@/lib/demo/create-customer'
 import { createWorkOrder } from '@/lib/demo/create-work-order'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 import type { Customer, WorkOrder } from '@/lib/types/database'
@@ -32,6 +34,7 @@ function OrderRow({ order, customers }: { order: WorkOrder; customers: Customer[
         <p className="text-sm font-medium">{order.work_order_number}</p>
         <p className="text-sm">{customerName(order.customer_id, customers)}</p>
         <p className="text-xs text-muted-foreground">{order.intake_notes || 'No intake notes'}</p>
+        <PromisedPickup value={order.estimated_completion} />
       </div>
       <div className="shrink-0 text-right">
         <Badge variant="secondary">{formatStatus(order.status)}</Badge>
@@ -42,11 +45,16 @@ function OrderRow({ order, customers }: { order: WorkOrder; customers: Customer[
 }
 
 export default function CheckInPage() {
-  const { customers, workOrders, setWorkOrders } = useDemoStore()
+  const { customers, workOrders, setCustomers, setWorkOrders } = useDemoStore()
   const [customerId, setCustomerId] = useState('walk-in')
+  const [addingCustomer, setAddingCustomer] = useState(false)
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [phone, setPhone] = useState('')
   const [bike, setBike] = useState('')
   const [problem, setProblem] = useState('')
   const [priority, setPriority] = useState<WorkOrder['priority']>('normal')
+  const [pickup, setPickup] = useState('')
   const [error, setError] = useState('')
   const [created, setCreated] = useState('')
 
@@ -59,18 +67,29 @@ export default function CheckInPage() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     try {
+      const draftCustomer = addingCustomer
+        ? createCustomer({ firstName, lastName, phone })
+        : null
       const order = createWorkOrder({
-        customerId,
+        customerId: draftCustomer?.id ?? customerId,
         bikeDescription: bike,
         intakeNotes: problem,
         priority,
+        promisedPickup: pickup,
       })
+      if (draftCustomer) setCustomers(current => [draftCustomer, ...current])
       setWorkOrders(current => [order, ...current])
       setCreated(order.work_order_number)
       setError('')
+      setAddingCustomer(false)
+      setFirstName('')
+      setLastName('')
+      setPhone('')
       setBike('')
       setProblem('')
       setPriority('normal')
+      setPickup('')
+      setCustomerId('walk-in')
     } catch (caught) {
       setCreated('')
       setError(caught instanceof Error ? caught.message : 'Check-in could not be saved.')
@@ -101,18 +120,43 @@ export default function CheckInPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4" aria-label="New check-in">
               <div className="space-y-1.5">
-                <Label htmlFor="checkin-customer">Customer</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger id="checkin-customer"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="walk-in">Walk-in</SelectItem>
-                    {customers.map(customer => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.first_name} {customer.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between gap-2">
+                  {addingCustomer ? <Label>Customer</Label> : <Label htmlFor="checkin-customer">Customer</Label>}
+                  <Button type="button" variant="link" className="h-auto p-0" onClick={() => setAddingCustomer(value => !value)}>
+                    {addingCustomer ? 'Use existing customer' : 'New customer'}
+                  </Button>
+                </div>
+                {addingCustomer ? (
+                  <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="checkin-first">First name</Label>
+                        <Input id="checkin-first" value={firstName} autoComplete="off" onChange={event => setFirstName(event.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="checkin-last">Last name</Label>
+                        <Input id="checkin-last" value={lastName} autoComplete="off" onChange={event => setLastName(event.target.value)} />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="checkin-phone">Phone</Label>
+                      <Input id="checkin-phone" type="tel" value={phone} autoComplete="off" placeholder="Optional" onChange={event => setPhone(event.target.value)} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Saved on Customers. First and last name are required for a new customer.</p>
+                  </div>
+                ) : (
+                  <Select value={customerId} onValueChange={setCustomerId}>
+                    <SelectTrigger id="checkin-customer"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="walk-in">Walk-in</SelectItem>
+                      {customers.map(customer => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.first_name} {customer.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="checkin-bike">Bike description</Label>
@@ -144,6 +188,11 @@ export default function CheckInPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="checkin-pickup">Promised pickup</Label>
+                <Input id="checkin-pickup" type="datetime-local" value={pickup} onChange={event => setPickup(event.target.value)} />
+                <p className="text-xs text-muted-foreground">Optional. Leave blank if you have not promised a time.</p>
               </div>
               <p className="text-xs text-muted-foreground">
                 New orders start at Intake. When Assume Immediate Work is on, they start In Progress.

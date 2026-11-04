@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Separator } from '@/components/ui/separator'
 import type { Customer } from '@/lib/types/database'
+import { createCustomer } from '@/lib/demo/create-customer'
 import { mockCustomers } from '@/lib/demo/mock-data'
 import { usePersistentState } from '@/lib/demo/use-persistent-state'
 
@@ -132,25 +133,17 @@ function customerToForm(c: Customer): CustomerForm {
 }
 
 function formToCustomer(form: CustomerForm, existing?: Customer): Customer {
-  const now = new Date().toISOString()
-  return {
-    id: existing?.id ?? `cust-${Date.now()}`,
-    organization_id: 'demo-org',
-    first_name: form.first_name.trim(),
-    last_name: form.last_name.trim(),
-    email: form.email.trim() || null,
-    phone: form.phone.trim() || null,
-    address: form.address.trim() || null,
-    city: form.city.trim() || null,
-    state: form.state.trim() || null,
-    zip: form.zip.trim() || null,
-    notes: form.notes.trim() || null,
-    total_spent: existing?.total_spent ?? 0,
-    visit_count: existing?.visit_count ?? 0,
-    last_visit: existing?.last_visit ?? null,
-    created_at: existing?.created_at ?? now,
-    updated_at: now,
-  }
+  return createCustomer({
+    firstName: form.first_name,
+    lastName: form.last_name,
+    email: form.email,
+    phone: form.phone,
+    address: form.address,
+    city: form.city,
+    state: form.state,
+    zip: form.zip,
+    notes: form.notes,
+  }, new Date(), existing)
 }
 
 // ── Customer form dialog (add & edit) ─────────────────────────────────────────

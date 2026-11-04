@@ -103,15 +103,22 @@ The sidebar treats a trailing slash as the same route, which matches the static 
 
 ## Check-in
 
-Check-in is the drop-off desk. Choose an existing customer or Walk-in, enter the bike and the
-reported problem, and set a priority. Check in creates a work order in `bikesuite_work_orders`,
-the same browser store the Work Orders page uses. The bike description is saved in `intake_notes`
-because a work order has no separate bike field; notes are appended after an em dash.
+Check-in is the drop-off desk. Choose Walk-in, a customer already saved on Customers, or New
+customer. New customer asks for a first name, last name, and optional phone, then writes a
+record to `bikesuite_customers`. That is the same store and the same record shape as Add
+Customer, so the person shows up on Customers and can be picked on the next check-in. A new
+check-in customer starts with no spend and no visits.
+
+Check in also creates a work order in `bikesuite_work_orders`. The bike description is saved in
+`intake_notes` because a work order has no separate bike field; notes are appended after an em
+dash. Promised pickup is optional. Leave it blank and the work order has no promised time. A
+chosen time is saved on `estimated_completion` and shown on Check-in, the dashboard, work-order
+cards, the work-order detail, and the payment summary.
 
 Orders start at Intake unless Settings > Work Orders > Assume Immediate Work is on, in which
 case they start In Progress. The page lists bikes still in the shop and calls out orders that
 are Ready for pickup. Completed and picked-up orders stay on Work Orders only. Check-in does
-not take payment, add parts, or create a customer record.
+not take payment or add parts.
 
 ## Verification
 
@@ -132,7 +139,8 @@ Tests cover default locking, blank sign-in, session restoration, inactivity,
 manual locking, portal cleanup (including while turning prompts off), sidebar timing,
 keyboard behavior, catalog validation, bulk/category imports, duplicate handling,
 failed downloads, storage failures, corrupt saved catalogs, check-in creation,
-immediate-work status, and hiding finished orders.
+immediate-work status, hiding finished orders, creating a customer in the shared
+customer store, picking an existing customer, and optional promised pickup times.
 
 Current catalog coverage is limited: Trek's public US bicycle listing has 225
 model/frameset records; Giant has 67 family references. These snapshots were collected

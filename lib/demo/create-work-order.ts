@@ -7,6 +7,21 @@ export type WorkOrderDraft = {
   priority: WorkOrder['priority']
   laborEstimate?: string
   partsEstimate?: string
+  promisedPickup?: string
+}
+
+export function formatPromisedPickup(value: string | null | undefined) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function promisedPickup(value: string | undefined) {
+  if (!value?.trim()) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) throw new Error('Enter a valid pickup time, or leave it blank.')
+  return date.toISOString()
 }
 
 function money(value: string | undefined) {
@@ -43,7 +58,7 @@ export function createWorkOrder(draft: WorkOrderDraft, now = new Date()): WorkOr
     intake_notes: notes,
     diagnosis_notes: null,
     internal_notes: null,
-    estimated_completion: null,
+    estimated_completion: promisedPickup(draft.promisedPickup),
     labor_estimate: money(draft.laborEstimate),
     parts_estimate: money(draft.partsEstimate),
     actual_labor: 0,

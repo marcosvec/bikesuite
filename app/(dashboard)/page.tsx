@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { DollarSign, Wrench, AlertTriangle, Users } from 'lucide-react'
 import { DemoBanner } from '@/components/demo-banner'
+import { PromisedPickup } from '@/components/promised-pickup'
 import { useDemoStore } from '@/lib/demo/use-demo-store'
 
 export default function DashboardPage() {
@@ -129,6 +130,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="font-medium text-sm">{wo.work_order_number}</p>
                     <p className="text-xs text-muted-foreground">{wo.intake_notes}</p>
+                    <PromisedPickup value={wo.estimated_completion} />
                   </div>
                   <Badge variant={wo.status === 'in_progress' ? 'default' : 'secondary'}>
                     {wo.status.replace('_', ' ')}

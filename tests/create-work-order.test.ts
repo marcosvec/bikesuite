@@ -19,6 +19,26 @@ describe('createWorkOrder', () => {
     expect(order.work_order_number).toBe(`WO-${now.getFullYear()}-${String(now.getTime()).slice(-4)}`)
     expect(order.labor_estimate).toBe(0)
     expect(order.parts_estimate).toBe(0)
+    expect(order.estimated_completion).toBeNull()
+  })
+
+  it('saves an optional promised pickup and rejects a bad one', () => {
+    const pickup = '2026-11-05T16:30'
+    const order = createWorkOrder({
+      customerId: 'walk-in',
+      bikeDescription: 'Blue Trek FX',
+      intakeNotes: '',
+      priority: 'normal',
+      promisedPickup: pickup,
+    }, now)
+    expect(order.estimated_completion).toBe(new Date(pickup).toISOString())
+    expect(() => createWorkOrder({
+      customerId: 'walk-in',
+      bikeDescription: 'Blue Trek FX',
+      intakeNotes: '',
+      priority: 'normal',
+      promisedPickup: 'not-a-date',
+    }, now)).toThrow(/pickup time/i)
   })
 
   it('keeps a selected customer, estimates, and immediate-work status', () => {
